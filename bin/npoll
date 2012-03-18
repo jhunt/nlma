@@ -402,15 +402,5 @@ npoll was written by James Hunt <jhunt@synacor.com>.
 
 None yet.
 
-=head1 WISHLIST
-
-Things that would be nice-to-have:
-
-=over
-
-=item - Pipelining for send_nsca (avoid the TCP overhead)
-
-=back
-
 =cut
 
