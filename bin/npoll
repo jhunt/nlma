@@ -163,6 +163,15 @@ The global configuration section controls how npoll behaves overall.
 
 =over
 
+=item B<user>
+
+User to run the poller as.  You are strongly encouraged to find or create
+an account with fewer privileges than root.  Defaults to `icinga'.
+
+=item B<group>
+
+Group to run the poller as.  Defaults to `icinga'.
+
 =item B<parents>
 
 A sequence of Nagios parent servers, specified as I<host:port>, to which
@@ -207,6 +216,11 @@ default behavior.
 A directory that npoll can use to dump out configuration and state data,
 in response to USR1 signals.  See the I<SIGNAL HANDLING> section later
 for more details.  Defaults to /var/tmp
+
+=item B<pid_file>
+
+Path to store the running daemon's PID file in.  Ignored if running in
+foreground mode.
 
 =item B<errlog>
 

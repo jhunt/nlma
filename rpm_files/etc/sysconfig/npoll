@@ -1,0 +1,8 @@
+# npoll sysconfig overrides
+
+# Override the location of the npoll configuration file
+# (which is normally /etc/npoll.yml)
+#NPOLL_CONFIG="/path/to/npoll.yml"
+
+# Specify additional npoll options (mostly useless)
+#NPOLL_OPTS=""

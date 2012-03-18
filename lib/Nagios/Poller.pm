@@ -4,6 +4,7 @@ use warnings;
 use strict;
 
 use POSIX;
+use Fcntl qw(LOCK_EX LOCK_NB);
 use Cwd qw(abs_path);
 use Sys::Hostname qw(hostname);
 
@@ -24,7 +25,18 @@ use constant TICK => 1000;
 
 sub daemonize
 {
+	my ($user, $group, $pid_file) = @_;
+
 	DEBUG("daemonizing");
+
+	open(SELFLOCK, "<$0") or die "Couldn't find $0: $!\n";
+	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another npoll daemon running?\n";
+	open(PIDFILE, ">$pid_file") or die "Couldn't open $pid_file: $!\n";
+	my $uid = getpwnam($user) or die "User $user does not exist\n";
+	my $gid = getgrnam($group) or die "Group $group does not exist\n";
+
+	setgid($gid) || die "Could not setgid to $group group";
+	setuid($uid) || die "Could not setuid to $user user";
 
 	open STDIN,  "</dev/null" or die "daemonize: failed to reopen STDIN\n";
 	open STDOUT, ">/dev/null" or die "daemonize: failed to reopen STDOUT\n";
@@ -36,6 +48,9 @@ sub daemonize
 	exit if fork;
 
 	usleep(1000) until getppid == 1;
+
+	print PIDFILE "$$\n";
+	close PIDFILE;
 }
 
 sub schedule_check
@@ -181,6 +196,18 @@ sub parse_config
 	if (!exists $config->{hostname}) {
 		$config->{hostname} = hostname;
 		DEBUG("no config for hostname: using detected value of $config->{hostname}");
+	}
+	if (!exists $config->{user}) {
+		$config->{user} = "icinga";
+		DEBUG("no config for daemon user: using default of $config->{user}");
+	}
+	if (!exists $config->{group}) {
+		$config->{group} = "icinga";
+		DEBUG("no config for daemon group: using default of $config->{group}");
+	}
+	if (!exists $config->{pid_file}) {
+		$config->{pid_file} = "/var/run/npoll.pid";
+		DEBUG("no config for pid file: using default of $config->{pid_file}");
 	}
 	if (!exists $config->{parents}) {
 		DEBUG("no config for parents: using default of []");
@@ -376,8 +403,8 @@ sub start
 		exit 1;
 	}
 
-	daemonize unless $foreground;
 	my ($config, $checks) = parse_config($config_file);
+	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
 
 	INFO("npoll v$VERSION starting up");

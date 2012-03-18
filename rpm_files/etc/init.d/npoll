@@ -1,0 +1,79 @@
+#!/bin/bash
+#
+# Init file for npoll
+#
+# chkconfig: 2345 55 25
+# description: npoll Nagios Local Check Agent
+#
+# processname: npoll
+# config: /etc/npoll.yml
+# pidfile: /var/run/npoll
+
+# source function library
+. /etc/rc.d/init.d/functions
+
+NPOLL_CONFIG=""
+NPOLL_OPTS=""
+
+if [ -f /etc/sysconfig/npoll ]; then
+	. /etc/sysconfig/npoll
+fi
+
+if [ -n "$NPOLL_CONFIG" ]; then
+	NPOLL_OPTS="-c $NPOLL_CONFIG $NPOLL_OPTS"
+fi
+
+NPOLL=npoll
+BINDIR=/usr/bin
+RETVAL=0;
+
+start()
+{
+	echo -n $"Starting $NPOLL  "
+	daemon "$BINDIR/$NPOLL $NPOLL_OPTS" && success || failure
+	RETVAL=$?
+	[ "$RETVAL" = 0 ] && touch /var/lock/subsys/$NPOLL
+	echo
+}
+
+stop()
+{
+	echo -n $"Stopping $NPOLL  "
+	killproc $BINDIR/$NPOLL -TERM
+	# FIXME: wait for npoll to actually stop...
+	RETVAL=$?
+	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/$NPOLL
+	echo
+}
+
+reload()
+{
+	echo -n $"Reloading $NPOLL  "
+	killproc $BINDIR/$NPOLL -HUP
+	RETVAL=$?
+	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/$NPOLL
+	echo
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		start
+		;;
+	reload)
+		reload
+		;;
+	status)
+		status $BINDIR/$NPOLL
+		;;
+	*)
+		echo $"Usage: $0 {start|stop|restart|reload|status}"
+		RETVAL=1
+esac
+exit $RETVAL
