@@ -682,6 +682,13 @@ Configures the Log::Log4perl subsystem to send log messages to the
 appropriate syslog facility.  Used at startup and during SIGHUP
 reconfiguration (unless the Poller is running in foreground mode).
 
+=item B<checkin($config)>
+
+Run the built-in poller checkin logic, to report back to all parent
+instances that the poller is in fact running, and to show what it
+has been doing since it last checked in (number of checks run,
+average run time, etc.).
+
 =item B<sighup_handler>
 
 =item B<sigterm_handler>
