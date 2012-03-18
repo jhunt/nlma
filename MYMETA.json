@@ -1,5 +1,5 @@
 {
-   "abstract" : "unknown",
+   "abstract" : "Nagios Local Check Agent",
    "author" : [
       "James Hunt <jhunt@synacor.com>"
    ],

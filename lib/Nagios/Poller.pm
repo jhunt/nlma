@@ -451,3 +451,137 @@ sub start
 }
 
 1;
+
+=head1 NAME
+
+Nagios::Poller - Nagios Local Check Agent
+
+=head1 DESCRIPTION
+
+The Nagios::Poller module implements the guts of the B<npoll> command.
+Administrators looking to configure or use npoll should see npoll(1).
+
+=head1 METHODS
+
+=over
+
+=item B<start($class, $config_file, $foreground)>
+
+Initiates the Nagios::Poller scheduling loop, like this:
+
+  Nagios::Poller->start("/etc/npoll.yml")
+
+The $config_file argument will be turned into an absolute path if it
+is not, so that SIGHUP reconfiguration still works when daemonized
+(and CWD has changed to /).
+
+Normal startup problems (i.e. unreadable / non-existent configuration
+file) are caught early, and cause the process to exit with an exit code
+of 1.
+
+If $foreground is passed, and is a true value, the poller will run in
+so-called "foreground" mode; all logging is done to stderr and the
+process does not fork into the background.  See npoll(1) for details.
+
+=back
+
+=head1 INTERNAL METHODS
+
+=over
+
+=item B<MAX($a, $b)>
+
+Return the greater of two values.
+
+=item B<MIN($a, $b)>
+
+Return the lesser of two values.
+
+=item B<daemonize>
+
+Daemonize the process by forking into the background, closing all
+file descriptors, and becoming a child of init(1)
+
+=item B<schedule_check($check)>
+
+Update the B<next_run> time for a check, based on the last time it
+started execution, and its interval.
+
+=item B<run_check($check)>
+
+Fork a child process, with a uni-directional pipe, and execute the
+check plugin command.  This function is responsible for keeping
+track of the child process' PID, and setting up the soft and hard
+timeout deadlines.
+
+=item B<reap_check($check, $status)>
+
+Perform necessary accounting actions, like calculating check duration
+and determining child output and exit code.  The $status variable
+should come from the waitpid call, and tells reap_check if the check
+exited of its own accord, or was killed (either by the Poller, or
+some other signal).
+
+This function handles various edge cases, including check runs that
+created no output, and check runs that were killed because of timeouts.
+
+=item B<send_nsca($parent, $cmd, $host, @checks)>
+
+Fork a child process to submit results to a single Nagios parent via
+send_nsca (specified by $cmd).  $host is the hostname of the local node,
+which is used to inform the $parent which host these check results
+pertain to.
+
+=item B<parse_config($file)>
+
+Parse the Nagios::Poller YAML configuration, supplying default values
+where appropriate.  Returns two values, the global configuration and
+an array of normalized check definitions.
+
+=item B<dump_config($config, $checks)>
+
+Dump configuration and scheduling data (usually in response to
+SIGUSR1).  This function handles naming and creation of the dump
+file.
+
+=item B<merge_check_defs($old, $new)>
+
+Merges check definitions (usually in response to reconfiguration via
+SIGHUP).  This function handles the various edge cases to ensure
+that check additions, updates and removals are processed properly,
+even if a check is currently running.  $old and $new are array refs.
+
+=item B<waitall($config, $checks, $flags)>
+
+A refactoring, waitall waits for child processes to exit (either
+check runs or send_nsca calls) and reacts accordingly.  Nothing is
+done in response to a send_nsca child process terminating, but
+check process termination is handled via a call to reap_check and
+send_nsca.
+
+The $flags arguments should either be undef, or POSIX::WNOHANG,
+depending on whether it should wait for all child processes (i.e.
+when terminating via SIGTERM) or just child processes that have
+already exited (i.e. normal operation).
+
+=item B<configure_syslog($logcfg)>
+
+Configures the Log::Log4perl subsystem to send log messages to the
+appropriate syslog facility.  Used at startup and during SIGHUP
+reconfiguration (unless the Poller is running in foreground mode).
+
+=item B<sighup_handler>
+
+=item B<sigterm_handler>
+
+=item B<sigusr1_handler>
+
+Signal handles for dealing with external control mechanisms.
+
+=back
+
+=head1 AUTHOR
+
+Nagios::Poller was written by James Hunt <jhunt@synacor.com>
+
+=cut
