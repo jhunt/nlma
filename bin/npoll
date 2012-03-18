@@ -1,0 +1,367 @@
+#!/usr/bin/perl
+
+#
+# npoll - Nagios Polling Daemon
+#
+# author:  James Hunt <jhunt@synacor.com>
+# created: 2012-03-17
+#
+
+use warnings;
+use strict;
+
+use Nagios::Poller;
+use Getopt::Long;
+use Log::Log4perl qw(:easy);
+
+my $DEFAULT_CONFIG_FILE_PATH = "/etc/npoll.yml";
+
+sub usage
+{
+	print "USAGE: $0 [-hF] [-vvv] [-c /path/to/config.yml]\n";
+	print "\n";
+	print "OPTIONS\n";
+	print "\n";
+	print "  --config, -c /path/to/config.yml\n";
+	print "      Specify a different configuration.\n";
+	print "      Default is $DEFAULT_CONFIG_FILE_PATH\n";
+	print "\n";
+	print "  --help, -h, -?\n";
+	print "      Show this help message.\n";
+	print "\n";
+	print "  --foreground, -F\n";
+	print "      Don't detach to run in the background.\n";
+	print "      By default, npoll tries to daemonize.\n";
+	print "\n";
+	print " --verbose, -v\n";
+	print "      Increase verbosity.  Can be used multiple\n";
+	print "      times for increase verbosity.\n";
+	print "\n";
+}
+
+my %opt = (
+	config => $DEFAULT_CONFIG_FILE_PATH,
+	verbose => 0,
+	foreground => undef
+);
+
+Getopt::Long::Configure qw(bundling);
+GetOptions(\%opt,
+	"config|c=s",
+	"help|h|?",
+	"foreground|F",
+	"verbose|v+",
+);
+
+if ($opt{help}) {
+	usage;
+	exit(0);
+}
+
+if ($opt{foreground}) {
+	my $level = $ERROR;
+	my $name  = "ERROR";
+
+	if ($opt{verbose} == 1) {
+		$level = $WARN;
+		$name  = "WARN";
+
+	} elsif ($opt{verbose} == 2) {
+		$level = $INFO;
+		$name  = "INFO";
+
+	} elsif ($opt{verbose} >= 3) {
+		$level = $DEBUG;
+		$name  = "DEBUG";
+	}
+	Log::Log4perl->easy_init($level);
+	ALWAYS("log level set to $name");
+}
+Nagios::Poller->start($opt{config}, $opt{foreground});
+
+=pod
+
+=head1 NAME
+
+B<npoll> - The Nagios Polling Daemon
+
+=head1 SYNOPSIS
+
+npoll [-hFv] [-c /path/to/config.yml]
+
+=head1 DESCRIPTION
+
+The Nagios Poller is a host-side monitoring agent that schedules and runs
+check plugins on the local host, translates their output and exit codes,
+and then reports this information up to one or more Nagios/Icinga parent
+servers via NSCA.
+
+It features a high-resolution clock for both scheduling and tracking plugin
+runs.
+
+Future support is planned for Nagios-style retry_interval behavior.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--config>, B<-c> I</path/to/config.yml>
+
+By default, npoll uses /etc/npoll.yml for configuration of both behavior
+and check definitions; this option lets you specify a different path.
+
+=item B<--foreground>, B<-F>
+
+Force npoll to remain in the foreground, instead of forking off as a daemon
+process.  In foreground mode, npoll will automatically redirect all logging
+to standard error, and honor the B<-v> flags.
+
+=item B<--verbose>, B<-v>
+
+Increase output in foreground mode (see B<--foreground>).  Can be specified
+multiple times, for a cumulative effect.  npoll only honors up to three B<-v>
+flags; B<-vvv> is equivalent to full debug mode.
+
+=item B<--help>, B<-h>, B<-?>
+
+Display a short (but informative!) help screen.
+
+=back
+
+=head1 CONFIGURATION
+
+npoll uses YAML for its configuration language.  The npoll configuration file
+has two parts (so-called "documents" in YAML-ese): one for global behavior
+and one for checks.
+
+A typical npoll config file looks like this:
+
+  # npoll configuration (example)
+  ---
+  # GLOBAL OPTIONS
+  parents:
+    - primary.nagios.example.com:5667
+    - standby.nagios.example.com:5667
+  log:
+    level:    error
+    facility: daemon
+  ---
+  # CHECK DEFINITIONS
+  check_cpu:
+    command: /usr/bin/check_cpu -w 80% -c 90%
+    interval: 300
+    timeout: 20
+  check_memory:
+    command: /opt/nagios/plugins/check_memory -w 80% -c 90%
+
+Each section is preceded by the YAML document boundary, a single line
+consisting of three hyphens (---).
+
+=head2 Global Configuration
+
+The global configuration section controls how npoll behaves overall.
+
+=over
+
+=item B<parents>
+
+A sequence of Nagios parent servers, specified as I<host:port>, to which
+npoll should submit check results.  More pedantically, these are the list
+of NSCA endpoints.
+
+If you don't specify these, npoll will happily schedule and run checks,
+but never submit the results to anyone.
+
+=item B<log>
+
+Controls the logging subsystem.  Currently, two sub-keys are supported,
+B<level> and B<facility>:
+
+=over
+
+=item B<level>
+
+How verbose npoll will be when it logs.  One of B<error>, B<warning>,
+B<info> or B<debug>.  If not specified, defaults to B<error>.  If you
+want to see what npoll is doing, from a scheduling and execution
+standpoint, B<info> is invaluable.
+
+=item B<facility>
+
+The syslog facility to log to.  Defaults to B<daemon>.
+
+=back
+
+=item B<hostname>
+
+Manually specify the hostname that npoll will use as "this node's"
+hostname when submitting check results.  If not specified, npoll will
+attempt to determine the local node's primary hostname and use that.
+
+Unless npoll has trouble reliably determining the local node's hostname,
+it is best to leave this out of the configuration, and rely on the
+default behavior.
+
+=item B<dump>
+
+A directory that npoll can use to dump out configuration and state data,
+in response to USR1 signals.  See the I<SIGNAL HANDLING> section later
+for more details.  Defaults to /var/tmp
+
+=item B<errlog>
+
+Path to a file that will be used to capture standard error from child
+processes (like check plugins and send_nsca).  Defaults to
+/var/log/npoll_err.
+
+=item B<startup_splay>
+
+When npoll starts up, it will try to schedule all defined checks to run
+as quickly as possible.  The I<startup splay> influences this behavior,
+and specifies an amount of time (in seconds) to spread each check out.
+The default value of 15 seconds causes npoll to schedule each initial
+check run 15 seconds apart.
+
+=back
+
+=head2 Check Definitions
+
+The second section of the npoll configuration defines the set of checks
+that npoll will schedule and run.  Each check is defined as a name and
+a set of key-value pairs.
+
+The name of the check will be used as the service name when submitting
+check results up to Nagios.
+
+The following attributes can be set on each check:
+
+=over
+
+=item B<command>
+
+The full command to run when executing this check.
+
+This should include all of the arguments you which to use, and should use
+the fully-qualified path to the binary or script to run.  npoll will
+execute this command, as-is, by specifying it as the only argument to
+`/bin/sh -c` 
+
+This attribute must be set.
+
+=item B<interval>
+
+How often to run this check, in seconds.
+
+For example, to run a check every 15 minutes, specify its B<interval> as
+900.  For purposes of scheduling, npoll does not count run-time against the
+scheduling interval.  Therefore, if you specify a check interval of 15
+seconds, and the plugin always runs for exactly 5 seconds, there will only
+be a 10 seconds gap between the termination of one run and the start of
+another.
+
+The default interval is 300 seconds (5 minutes).
+
+=item B<timeout>
+
+How long (in seconds) to allow a check plugin to execute before killing it.
+
+Internally, there are two timeouts for each check run; the soft timeout,
+which this attribute controls, and the hard timeout, calculated as
+B<timeout> + 2.  When the first timeout is reached, npoll will send SIGTERM
+to the child process.  If the child doesn't exit within 2 seconds, the hard
+timeout will be exceeded, and npoll will send the SIGKILL signal.
+
+The default timeout is 30 seconds.
+
+=back
+
+=head1 SCHEDULING
+
+=head1 SIGNAL HANDLING
+
+Administrators can control a running npoll instance through standard UNIX
+signals, and the kill(2) command.  npoll responds to signals as follows:
+
+=over
+
+=item B<SIGTERM>
+
+Attempt to terminate gracefully.  No further check execution scheduling
+takes place, and no new checks are run.  npoll will not, however, terminate
+immediately, since it will wait for all of its child processes, be they
+send_nsca processes or running check plugins, to exit.  For running check
+plugins, npoll will kick off new send_nsca processes to report results.
+
+Therefore, it is B<VERY IMPORTANT> that npoll not be killed outright with
+kill -9, since it will be unable to report on the status of still-running
+check plugins.
+
+=item B<SIGHUP>
+
+Attempt to reload configuration from the original files.  Note that it is
+impossible for npoll to be reconfigured from a different configuration file
+than it was started with.  When it receives the HUP signal, npoll will
+re-read its configuration and alter its behavior accordingly.
+
+If new checks are added, they are scheduled according to B<startup splay>
+(see B<CONFIGURATION>).
+
+If an existing check is removed, npoll will remove it from the list of
+checks that can be scheduled, but will let an ongoing run of that check
+finish and still report its status to Nagios.
+
+=item B<SIGUSR1>
+
+Dump configuration and scheduling data to a file.  SIGUSR1 allows an
+administrator to look inside of a running npoll instance to see what it
+is doing and how it is scheduling things.
+
+Dump files are named according to the pattern npoll.<TIMESTAMP>.yml,
+where <TIMESTAMP> is a high-resolution epoch timestamp with microsecond
+resolution.  These files are written to the dump directory (see
+B<CONFIGURATION>) which defaults to /var/tmp.
+
+=back
+
+=head1 CHECK PLUGINS
+
+npoll expects its check plugins to behave the same way as standard Nagios
+active check plugins: output a single line of useful data, and exit with
+a specific exit code to indicate check status:
+
+=over
+
+=item 0 - OK
+
+=item 1 - WARNING
+
+=item 2 - CRITICAL
+
+=item 3 - UNKNOWN
+
+=back
+
+=head1 AUTHOR
+
+npoll was written by James Hunt <jhunt@synacor.com>.
+
+=head1 BUGS
+
+None yet.
+
+=head1 WISHLIST
+
+Things that would be nice-to-have:
+
+=over
+
+=item - Report npoll status / health to NSCA
+
+=item - Nagios-style retry logic
+
+=item - Pipelining for send_nsca (avoid the TCP overhead)
+
+=back
+
+=cut
+

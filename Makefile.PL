@@ -11,6 +11,7 @@ WriteMakefile(
       ? ('LICENSE'=> 'perl')
       : ()),
     PL_FILES            => {},
+    EXE_FILES           => [ 'bin/npoll' ],
     PREREQ_PM => {
         'Test::More' => 0,
     },
