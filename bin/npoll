@@ -280,7 +280,7 @@ The default timeout is 30 seconds.
 =head1 SIGNAL HANDLING
 
 Administrators can control a running npoll instance through standard UNIX
-signals, and the kill(2) command.  npoll responds to signals as follows:
+signals, and the kill(1) command.  npoll responds to signals as follows:
 
 =over
 
