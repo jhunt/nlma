@@ -2,7 +2,11 @@ bin/npoll
 lib/Nagios/Poller.pm
 Makefile.PL
 MANIFEST			This list of files
+perl-Nagios-Poller-1.0-1_synacor.noarch.rpm
 README
+rpm_files/etc/init.d/npoll
+rpm_files/etc/npoll.yml.dist
+rpm_files/etc/sysconfig/npoll
 rpm_meta.yml
 t/00-load.t
 t/boilerplate.t
