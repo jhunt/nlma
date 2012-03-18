@@ -210,6 +210,29 @@ Unless npoll has trouble reliably determining the local node's hostname,
 it is best to leave this out of the configuration, and rely on the
 default behavior.
 
+=item B<checkin>
+
+Controls how and when npoll will submit its own check result to Nagios,
+indicating what it is doing and how well it is doing it.  Supports two
+subkeys, B<service> and B<interval>:
+
+=over
+
+=item B<service>
+
+The name of the service that npoll should submit its check-in result as.
+Defaults to `npoll_checkin'
+
+=item B<interval>
+
+How often npoll should check in.  Defaults to 5 minutes.
+
+=back
+
+Every check-in, npoll will tally up how many checks it has run and
+calculate the average run time of all check runs.  This result will
+B<always> be an OK.
+
 =item B<dump>
 
 A directory that npoll can use to dump out configuration and state data,
@@ -384,8 +407,6 @@ None yet.
 Things that would be nice-to-have:
 
 =over
-
-=item - Report npoll status / health to NSCA
 
 =item - Pipelining for send_nsca (avoid the TCP overhead)
 

@@ -23,6 +23,9 @@ $| = 1;
 
 use constant TICK => 1000;
 
+# for check-in result
+my @RUNTIMES = ();
+
 sub daemonize
 {
 	my ($user, $group, $pid_file) = @_;
@@ -121,6 +124,8 @@ sub reap_check
 	$check->{duration} = $check->{ended_at} - $check->{started_at};
 	$check->{exit_status} = (WIFEXITED($status) ? WEXITSTATUS($status) : -1);
 
+	push @RUNTIMES, $check->{duration};
+
 	# calculate hard / soft state (for retry logic)
 	$check->{last_state} = $check->{state} unless $check->{is_soft_state};
 	$check->{state} = $check->{exit_status};
@@ -156,6 +161,7 @@ sub reap_check
 	}
 
 	if ($check->{sigkill} || $check->{sigterm}) {
+		$check->{exit_status} = 3; # UNKNOWN
 		$buf = "check timed out";
 	}
 	my @l = split /[\r\n]/, $buf, 2;
@@ -261,6 +267,16 @@ sub parse_config
 	if (!exists $config->{log}->{level}) {
 		$config->{log}->{level} = 'error';
 		DEBUG("no syslog level configured: using default of $config->{log}->{level}");
+	}
+
+	$config->{checkin} = $config->{checkin} || {};
+	if (!exists $config->{checkin}->{interval}) {
+		$config->{checkin}->{interval} = 300;
+		DEBUG("no config for checkin interval: using default of $config->{checkin}->{interval}");
+	}
+	if (!exists $config->{checkin}->{service}) {
+		$config->{checkin}->{service} = "npoll_checkin";
+		DEBUG("no config for checkin service: using default of $config->{checkin}->{service}");
 	}
 
 	my @list = ();
@@ -423,6 +439,31 @@ sub configure_syslog
 	});
 }
 
+sub checkin
+{
+	my ($config) = @_;
+
+	my $total_time = 0;
+	for my $runtime (@RUNTIMES) {
+		$total_time += $runtime
+	}
+	my $nchecks = @RUNTIMES;
+	my $avg_time = sprintf("%0.3f", $total_time / 1000000 / $nchecks);
+
+	my $fake_check = {
+		name => $config->{checkin}->{service},
+		exit_status => 0,
+		output => "$nchecks checks run, ${avg_time}s average runtime",
+	};
+	DEBUG("CHECKIN - $fake_check->{output}");
+
+	for my $parent (@{$config->{parents}}) {
+		send_nsca($parent, $config->{send_nsca}, $config->{host_name}, $fake_check);
+	}
+
+	@RUNTIMES = ();
+}
+
 my $RECONFIG = 0;
 sub sighup_handler { $RECONFIG = 1; }
 
@@ -455,6 +496,7 @@ sub start
 	$SIG{USR1} = \&sigusr1_handler;
 	$SIG{PIPE} = "IGNORE";
 
+	my $next_checkin = gettimeofday + $config->{checkin}->{interval};
 	while (1) {
 		last if $TERM;
 
@@ -483,6 +525,10 @@ sub start
 		}
 
 		my $now = gettimeofday;
+		if ($next_checkin < $now) {
+			checkin($config);
+			$next_checkin += $config->{checkin}->{interval};
+		}
 		for my $check (@$checks) {
 			if ($check->{pid} > 0) {
 				if ($check->{hard_stop} < $now && !$check->{sigkill}) {
