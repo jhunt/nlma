@@ -484,12 +484,12 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
+	open ERRLOG, ">>$config->{errlog}";
+
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
 
 	INFO("npoll v$VERSION starting up");
-
-	open ERRLOG, ">>$config->{errlog}";
 
 	$SIG{HUP}  = \&sighup_handler;
 	$SIG{TERM} = \&sigterm_handler;
