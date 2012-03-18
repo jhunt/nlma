@@ -97,9 +97,8 @@ and then reports this information up to one or more Nagios/Icinga parent
 servers via NSCA.
 
 It features a high-resolution clock for both scheduling and tracking plugin
-runs.
-
-Future support is planned for Nagios-style retry_interval behavior.
+runs, and also implements retry logic similar to what Nagios uses for its
+active checks.
 
 =head1 OPTIONS
 
@@ -287,6 +286,23 @@ timeout will be exceeded, and npoll will send the SIGKILL signal.
 
 The default timeout is 30 seconds.
 
+=item B<attempts>
+
+The number of time to run the local check before considering the output
+'official.'  This is intenionally very similar to Nagios/Icinga's
+max_check_attempts directive.
+
+Defaults to 1 (no retry/confirmation).
+
+=item B<retry>
+
+A (usually) shorter time frame than B<interval>, used when multiple check
+attempts have been configured.  Intentionally very similar to Nagios/Icinga's
+retry_interval.  If B<attempts> is set to 1, B<retry> is effectively
+ignored.
+
+Defaults to 60 seconds.
+
 =back
 
 =head1 SCHEDULING
@@ -370,8 +386,6 @@ Things that would be nice-to-have:
 =over
 
 =item - Report npoll status / health to NSCA
-
-=item - Nagios-style retry logic
 
 =item - Pipelining for send_nsca (avoid the TCP overhead)
 

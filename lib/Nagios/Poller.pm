@@ -57,12 +57,13 @@ sub schedule_check
 {
 	my ($check) = @_;
 
-
-	if ($check->{started_at}) {
-		$check->{next_run} = $check->{started_at} + $check->{interval};
-	} else {
-		$check->{next_run} = gettimeofday + $check->{interval};
+	my $interval = $check->{interval};
+	if ($check->{is_soft_state}) {
+		$interval = $check->{retry};
 	}
+
+	$check->{next_run} = ($check->{started_at} || gettimeofday) + $interval;
+	DEBUG("scheduled $check->{name} to run in $interval s at $check->{next_run}");
 }
 
 sub run_check
@@ -120,6 +121,28 @@ sub reap_check
 	$check->{duration} = $check->{ended_at} - $check->{started_at};
 	$check->{exit_status} = (WIFEXITED($status) ? WEXITSTATUS($status) : -1);
 
+	# calculate hard / soft state (for retry logic)
+	$check->{last_state} = $check->{state} unless $check->{is_soft_state};
+	$check->{state} = $check->{exit_status};
+	if ($check->{state} < 0 || $check->{state} > 3) {
+		$check->{state} = 3; # UNKNOWN
+	}
+
+	$check->{current}++;
+	# OK != soft; propgation of previous state != soft
+	if ($check->{state} == 0 || $check->{state} == $check->{last_state}) {
+		$check->{is_soft_state} = 0;
+		$check->{current} = 1;
+
+	} elsif ($check->{current} == $check->{attempts}) {
+		$check->{is_soft_state} = 0;
+		$check->{current} = 1;
+
+	} else {
+		$check->{is_soft_state} = 1;
+	}
+
+	DEBUG("check $check->{name} :: last_state:$check->{last_state}, state:$check->{state}, attempts:$check->{current}/$check->{attempts}, soft:$check->{is_soft_state}");
 	schedule_check($check);
 
 	$check->{pid} = -1;
@@ -136,7 +159,7 @@ sub reap_check
 		$buf = "check timed out";
 	}
 	my @l = split /[\r\n]/, $buf, 2;
-	$buf = shift @l;
+	$buf = shift(@l) || '';
 	$check->{output} = $buf eq "" ? "(no check output)" : $buf;
 
 	$check->{pipe} = undef;
@@ -245,6 +268,7 @@ sub parse_config
 		DEBUG("parsed check definition for $cname");
 		my $check = $checks->{$cname};
 		$check->{name} = $cname;
+		$check->{current} = 1; # current attempt
 
 		# Default timeout of 30s
 		$check->{timeout} = $check->{timeout} || 30;
@@ -252,9 +276,24 @@ sub parse_config
 		# Default interval of 5 minutes
 		$check->{interval} = $check->{timeout} || 300;
 
+		# Default attempts of 1
+		$check->{attempts} = $check->{attempts} || 1;
+
+		# Default retry of 1 minute
+		$check->{retry} = $check->{retry} || 60;
+
+		DEBUG("$cname command is '$check->{command}'");
 		DEBUG("$cname interval is $check->{interval} seconds");
 		DEBUG("$cname timeout is $check->{timeout} seconds");
-		DEBUG("$cname command is '$check->{command}'");
+		DEBUG("$cname attempts is $check->{attempts}");
+		DEBUG("$cname retry interval is $check->{retry} seconds");
+
+		$check->{started_at} = $check->{duration} = $check->{ended_at} = 0;
+		$check->{next_run} = 0;
+		$check->{current} = $check->{is_soft_state} = 0;
+		$check->{last_state} = $check->{state} = 0;
+		$check->{pid} = $check->{exit_status} = -1;
+		$check->{output} = "";
 
 		push @list, $check;
 	}
@@ -353,7 +392,7 @@ sub waitall
 			$found = 1;
 			DEBUG("reaping child check process $child");
 			reap_check($check, $?);
-			push @results, $check;
+			push @results, $check unless $check->{is_soft_state};
 			last;
 		}
 
