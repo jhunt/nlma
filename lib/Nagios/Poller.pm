@@ -474,7 +474,7 @@ sub checkin
 	DEBUG("CHECKIN - $fake_check->{output}");
 
 	for my $parent (@{$config->{parents}}) {
-		send_nsca($parent, $config->{send_nsca}, $config->{host_name}, $fake_check);
+		send_nsca($parent, $config->{send_nsca}, $config->{hostname}, $fake_check);
 	}
 
 	@RUNTIMES = ();
