@@ -14,7 +14,7 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
-our $VERSION = '1.0';
+our $VERSION = '1.1';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -71,10 +71,23 @@ sub schedule_check
 
 sub run_check
 {
-	my ($check) = @_;
+	my ($check, $root) = @_;
 
 	my ($readfd, $writefd);
 	pipe $readfd, $writefd;
+
+	my $command = $check->{command};
+	if (substr($command, 0, 1) ne "/") {
+		if ($root) {
+			$command = "$root/$command";
+		} else {
+			WARN("check $check->{name} has relative command, but no plugin_root specified!!");
+		}
+	}
+	if ($check->{sudo}) {
+		$command = "/usr/bin/sudo -n -u $check->{sudo} $command";
+	}
+	INFO("executing '$command' via /bin/sh -c");
 
 	my $pid = fork();
 	if ($pid < 0) {
@@ -93,7 +106,7 @@ sub run_check
 		close $readfd;
 		close STDIN;
 
-		exec("/bin/sh", "-c", $check->{command}) or do {
+		exec("/bin/sh", "-c", $command) or do {
 			FATAL("$name exec failed: $!");
 			exit 42;
 		}
@@ -241,6 +254,9 @@ sub parse_config
 	if (!exists $config->{parents}) {
 		DEBUG("no config for parents: using default of []");
 		$config->{parents} = [];
+	}
+	if (!exists $config->{plugin_root}) {
+		DEBUG("no plugin_root configured; all check commands must be absolute paths!");
 	}
 	if (!exists $config->{dump}) {
 		$config->{dump} = "/var/tmp";
@@ -547,7 +563,7 @@ sub start
 
 				if ($check->{next_run} < $now) {
 					DEBUG("check $check->{name} next run $check->{next_run} < $now");
-					run_check($check);
+					run_check($check, $config->{plugin_root});
 				}
 			}
 		}
@@ -619,12 +635,18 @@ file descriptors, and becoming a child of init(1)
 Update the B<next_run> time for a check, based on the last time it
 started execution, and its interval.
 
-=item B<run_check($check)>
+=item B<run_check($check, $root)>
 
 Fork a child process, with a uni-directional pipe, and execute the
 check plugin command.  This function is responsible for keeping
 track of the child process' PID, and setting up the soft and hard
 timeout deadlines.
+
+If the check has been configured to run via sudo, the appropriate
+sudo invocation (complete with -n) is constructed.
+
+If $root is specified, it will be used as an absolute path to
+prepend relative path command definitions.
 
 =item B<reap_check($check, $status)>
 
