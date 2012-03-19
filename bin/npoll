@@ -144,6 +144,7 @@ A typical npoll config file looks like this:
   log:
     level:    error
     facility: daemon
+  plugin_root: /opt/nagios/plugins
   ---
   # CHECK DEFINITIONS
   check_cpu:
@@ -151,7 +152,13 @@ A typical npoll config file looks like this:
     interval: 300
     timeout: 20
   check_memory:
-    command: /opt/nagios/plugins/check_memory -w 80% -c 90%
+    command: check_memory -w 80% -c 90%
+    attempts: 4
+    interval: 3600
+    retry: 60
+  check_apache
+    command: check_apache
+    sudo: root
 
 Each section is preceded by the YAML document boundary, a single line
 consisting of three hyphens (---).
@@ -179,6 +186,18 @@ of NSCA endpoints.
 
 If you don't specify these, npoll will happily schedule and run checks,
 but never submit the results to anyone.
+
+=item B<plugin_root>
+
+npoll expects to be able to exec its check plugins without relying on the
+value of $PATH (which is a good thing).  Since most of the time, check
+plugins exist in a single directory, it becomes tedious and error-prone
+to constantly specify the absolute path to each plugin.  Instead, admins
+can set the plugin_root to that directory, and npoll will prepend it to
+any check command that is a relative path (i.e. does not start with '/').
+
+There is no default value for this configuration, and npoll will emit
+warnings (but still proceed) if it detects relative plugin paths.
 
 =item B<log>
 
@@ -325,6 +344,15 @@ retry_interval.  If B<attempts> is set to 1, B<retry> is effectively
 ignored.
 
 Defaults to 60 seconds.
+
+=item B<sudo>
+
+Specify an alternate user to invoke this command as, via sudo.  If present,
+npoll will automatically prepend '/usr/bin/sudo -n -u <user>' to the command,
+while still taking into account the current value of B<plugin_root>.
+
+By default, checks are not run with sudo, and will execute as the user running
+the npoll daemon.  See B<user> under B<GLOBAL CONFIGURATION>
 
 =back
 
