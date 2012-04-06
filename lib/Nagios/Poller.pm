@@ -515,6 +515,7 @@ sub start
 	configure_syslog($config->{log}) unless $foreground;
 
 	INFO("npoll v$VERSION starting up");
+	INFO("configured to run ",scalar @$checks," checks");
 
 	$SIG{HUP}  = \&sighup_handler;
 	$SIG{TERM} = \&sigterm_handler;
