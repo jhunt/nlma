@@ -464,11 +464,16 @@ sub checkin
 	my ($config) = @_;
 
 	my $total_time = 0;
-	for my $runtime (@RUNTIMES) {
-		$total_time += $runtime
+	my $avg_time = 0;
+	my $nchecks = 0;
+
+	if (@RUNTIMES) {
+		for my $runtime (@RUNTIMES) {
+			$total_time += $runtime
+		}
+		$nchecks = @RUNTIMES;
+		$avg_time = sprintf("%0.3f", $total_time / 1000000 / $nchecks);
 	}
-	my $nchecks = @RUNTIMES;
-	my $avg_time = sprintf("%0.3f", $total_time / 1000000 / $nchecks);
 
 	my $fake_check = {
 		name => $config->{checkin}->{service},
