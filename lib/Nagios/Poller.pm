@@ -259,6 +259,14 @@ sub parse_config
 		$config->{send_nsca} = "/usr/bin/send_nsca -c /etc/icinga/send_nsca.cfg";
 		DEBUG("no config for send_nsca: using default of $config->{send_nsca}");
 	}
+	if (!exists $config->{timeout}) {
+		$config->{timeout} = 30;
+		DEBUG("no config for timeout: using default of $config->{timeout}s");
+	}
+	if (!exists $config->{interval}) {
+		$config->{interval} = 300;
+		DEBUG("no config for interval: using default of $config->{interval}s");
+	}
 	if (!exists $config->{plugin_root}) {
 		DEBUG("no plugin_root configured; all check commands must be absolute paths!");
 	}
@@ -307,10 +315,10 @@ sub parse_config
 		$check->{current} = 1; # current attempt
 
 		# Default timeout of 30s
-		$check->{timeout} = $check->{timeout} || 30;
+		$check->{timeout} = $check->{timeout} || $config->{timeout};
 
 		# Default interval of 5 minutes
-		$check->{interval} = $check->{timeout} || 300;
+		$check->{interval} = $check->{timeout} || $config->{interval};
 
 		# Default attempts of 1
 		$check->{attempts} = $check->{attempts} || 1;
