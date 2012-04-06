@@ -255,6 +255,10 @@ sub parse_config
 		DEBUG("no config for parents: using default of []");
 		$config->{parents} = [];
 	}
+	if (!exists $config->{send_nsca}) {
+		$config->{send_nsca} = "/usr/bin/send_nsca -c /etc/icinga/send_nsca.cfg";
+		DEBUG("no config for send_nsca: using default of $config->{send_nsca}");
+	}
 	if (!exists $config->{plugin_root}) {
 		DEBUG("no plugin_root configured; all check commands must be absolute paths!");
 	}
