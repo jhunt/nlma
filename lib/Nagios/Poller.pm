@@ -506,6 +506,30 @@ sub sigterm_handler { $TERM = 1; }
 my $DUMPCONFIG = 0;
 sub sigusr1_handler { $DUMPCONFIG = 1; }
 
+sub runall
+{
+	my ($class, $config_file) = @_;
+
+	$config_file = abs_path($config_file);
+	if (!-r $config_file) {
+		print STDERR "$config_file: $!\n";
+		exit 1;
+	}
+
+	my ($config, $checks) = parse_config($config_file);
+	open ERRLOG, ">>", $config->{errlog};
+
+	Log::Log4perl->easy_init($INFO);
+
+	INFO("npoll v$VERSION starting up");
+	INFO("configured to run ",scalar @$checks," checks");
+
+	for my $check (@$checks) {
+		INFO(">> running check $check->{name}");
+		run_check($check, $config->{plugin_root});
+	}
+}
+
 sub start
 {
 	my ($class, $config_file, $foreground) = @_;
@@ -517,7 +541,7 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
-	open ERRLOG, ">>$config->{errlog}";
+	open ERRLOG, ">>", $config->{errlog};
 
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
@@ -541,7 +565,7 @@ sub start
 
 			if ($newconfig->{errlog} ne $config->{errlog}) {
 				close ERRLOG;
-				open ERRLOG, ">>$newconfig->{errlog}";
+				open ERRLOG, ">>", $newconfig->{errlog};
 
 			}
 			$config = $newconfig;
@@ -628,6 +652,14 @@ of 1.
 If $foreground is passed, and is a true value, the poller will run in
 so-called "foreground" mode; all logging is done to stderr and the
 process does not fork into the background.  See npoll(1) for details.
+
+=item B<runall($class, $config_file)>
+
+Ignore scheduling and run all configured checks, for testing.
+
+  Nagios::Poller->runall("/etc/npoll.yml")
+
+After each check has been run, it will not be re-scheduled.
 
 =back
 

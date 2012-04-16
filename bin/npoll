@@ -33,6 +33,10 @@ sub usage
 	print "      Don't detach to run in the background.\n";
 	print "      By default, npoll tries to daemonize.\n";
 	print "\n";
+	print " --runall, --test, -t\n";
+	print "      Ignore scheduling and execute all configured\n";
+	print "      checks serially; useful for testing.\n";
+	print "\n";
 	print " --verbose, -v\n";
 	print "      Increase verbosity.  Can be used multiple\n";
 	print "      times for increase verbosity.\n";
@@ -50,6 +54,7 @@ GetOptions(\%opt,
 	"config|c=s",
 	"help|h|?",
 	"foreground|F",
+	"runall|test|t",
 	"verbose|v+",
 );
 
@@ -58,26 +63,30 @@ if ($opt{help}) {
 	exit(0);
 }
 
-if ($opt{foreground}) {
-	my $level = $ERROR;
-	my $name  = "ERROR";
+if ($opt{runall}) {
+	Nagios::Poller->runall($opt{config});
+} else {
+	if ($opt{foreground}) {
+		my $level = $ERROR;
+		my $name  = "ERROR";
 
-	if ($opt{verbose} == 1) {
-		$level = $WARN;
-		$name  = "WARN";
+		if ($opt{verbose} == 1) {
+			$level = $WARN;
+			$name  = "WARN";
 
-	} elsif ($opt{verbose} == 2) {
-		$level = $INFO;
-		$name  = "INFO";
+		} elsif ($opt{verbose} == 2) {
+			$level = $INFO;
+			$name  = "INFO";
 
-	} elsif ($opt{verbose} >= 3) {
-		$level = $DEBUG;
-		$name  = "DEBUG";
+		} elsif ($opt{verbose} >= 3) {
+			$level = $DEBUG;
+			$name  = "DEBUG";
+		}
+		Log::Log4perl->easy_init($level);
+		ALWAYS("log level set to $name");
 	}
-	Log::Log4perl->easy_init($level);
-	ALWAYS("log level set to $name");
+	Nagios::Poller->start($opt{config}, $opt{foreground});
 }
-Nagios::Poller->start($opt{config}, $opt{foreground});
 
 =pod
 
