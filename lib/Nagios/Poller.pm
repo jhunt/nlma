@@ -252,8 +252,11 @@ sub parse_config
 		DEBUG("no config for pid file: using default of $config->{pid_file}");
 	}
 	if (!exists $config->{parents}) {
-		DEBUG("no config for parents: using default of []");
-		$config->{parents} = [];
+		DEBUG("no config for parents: using default of {}");
+		$config->{parents} = {default => []};
+	} elsif (!exists $config->{parents}{default}) {
+		DEBUG("no config for parents[default]: using default of []");
+		$config->{parents}{default} = [];
 	}
 	if (!exists $config->{send_nsca}) {
 		$config->{send_nsca} = "/usr/bin/send_nsca -c /etc/icinga/send_nsca.cfg";
@@ -311,8 +314,10 @@ sub parse_config
 	for my $cname (keys %$checks) {
 		DEBUG("parsed check definition for $cname");
 		my $check = $checks->{$cname};
-		$check->{name} = $cname;
 		$check->{current} = 1; # current attempt
+
+		# Use config key as name if not overridden
+		$check->{name} = $check->{name} || $cname;
 
 		# Default timeout of 30s
 		$check->{timeout} = $check->{timeout} || $config->{timeout};
@@ -326,6 +331,11 @@ sub parse_config
 		# Default retry of 1 minute
 		$check->{retry} = $check->{retry} || 60;
 
+		# Use default check environment
+		$check->{environment} = $check->{environment} || 'default';
+
+		DEBUG("$cname name is '$check->{name}'");
+		DEBUG("$cname environment is '$check->{environment}'");
 		DEBUG("$cname command is '$check->{command}'");
 		DEBUG("$cname interval is $check->{interval} seconds");
 		DEBUG("$cname timeout is $check->{timeout} seconds");
@@ -387,6 +397,7 @@ sub merge_check_defs
 			next unless $oldcheck->{name} eq $newcheck->{name};
 			$found = 1;
 
+			$oldcheck->{environment} = $newcheck->{environment};
 			$oldcheck->{command}  = $newcheck->{command};
 			$oldcheck->{interval} = $newcheck->{interval};
 			$oldcheck->{timeout}  = $newcheck->{timeout};
@@ -424,7 +435,7 @@ sub merge_check_defs
 sub waitall
 {
 	my ($config, $checks, $flags) = @_;
-	my @results = ();
+	my %results = ();
 
 	while ( (my $child = waitpid(-1, $flags)) > 0) {
 		my $status = $?;
@@ -436,7 +447,11 @@ sub waitall
 			$found = 1;
 			DEBUG("reaping child check process $child");
 			reap_check($check, $?);
-			push @results, $check unless $check->{is_soft_state};
+			unless ($check->{is_soft_state}) {
+				my $env = $check->{environment};
+				$results{$env} = [] unless $results{$env};
+				push @{$results{$env}}, $check;
+			}
 			last;
 		}
 
@@ -445,10 +460,10 @@ sub waitall
 		}
 	}
 
-	if (@results) {
-		for my $parent (@{$config->{parents}}) {
-			DEBUG("sending ".scalar(@results). " results to $parent");
-			send_nsca($parent, $config->{send_nsca}, $config->{hostname}, @results);
+	for my $env (keys %results) {
+		for my $parent (@{$config->{parents}{$env}}) {
+			DEBUG("sending ".scalar(@{$results{$env}}). " results to $parent");
+			send_nsca($parent, $config->{send_nsca}, $config->{hostname}, @{$results{$env}});
 		}
 	}
 }
@@ -490,7 +505,7 @@ sub checkin
 	};
 	DEBUG("CHECKIN - $fake_check->{output}");
 
-	for my $parent (@{$config->{parents}}) {
+	for my $parent (@{$config->{parents}{default}}) {
 		send_nsca($parent, $config->{send_nsca}, $config->{hostname}, $fake_check);
 	}
 
