@@ -1,0 +1,8 @@
+# nlma sysconfig overrides
+
+# Override the location of the nlma configuration file
+# (which is normally /etc/nlma.yml)
+#NPOLL_CONFIG="/path/to/nlma.yml"
+
+# Specify additional nlma options (mostly useless)
+#NPOLL_OPTS=""

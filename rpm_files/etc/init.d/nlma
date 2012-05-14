@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Init file for npoll
+# Init file for nlma
 #
 # chkconfig: 2345 55 25
-# description: npoll Nagios Local Check Agent
+# description: nlma Nagios Local Check Agent
 #
-# processname: npoll
-# config: /etc/npoll.yml
-# pidfile: /var/run/npoll
+# processname: nlma
+# config: /etc/nlma.yml
+# pidfile: /var/run/nlma
 
 # source function library
 . /etc/rc.d/init.d/functions
@@ -15,15 +15,15 @@
 NPOLL_CONFIG=""
 NPOLL_OPTS=""
 
-if [ -f /etc/sysconfig/npoll ]; then
-	. /etc/sysconfig/npoll
+if [ -f /etc/sysconfig/nlma ]; then
+	. /etc/sysconfig/nlma
 fi
 
 if [ -n "$NPOLL_CONFIG" ]; then
 	NPOLL_OPTS="-c $NPOLL_CONFIG $NPOLL_OPTS"
 fi
 
-NPOLL=npoll
+NPOLL=nlma
 BINDIR=/usr/bin
 RETVAL=0;
 
@@ -40,7 +40,7 @@ stop()
 {
 	echo -n $"Stopping $NPOLL  "
 	killproc $BINDIR/$NPOLL -TERM
-	# FIXME: wait for npoll to actually stop...
+	# FIXME: wait for nlma to actually stop...
 	RETVAL=$?
 	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/$NPOLL
 	echo
