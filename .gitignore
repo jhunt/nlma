@@ -10,7 +10,7 @@ _build*
 pm_to_blib*
 *.tar.gz
 .lwpcookies
-Nagios-Poller-*
+Nagios-Agent-*
 *.rpm
 cover_db
 .*.swp

@@ -3,7 +3,7 @@
 use Test::More tests => 1;
 
 BEGIN {
-    use_ok( 'Nagios::Poller' );
+    use_ok( 'Nagios::Agent' );
 }
 
-diag( "Testing Nagios::Poller $Nagios::Poller::VERSION, Perl $], $^X" );
+diag( "Testing Nagios::Agent $Nagios::Agent::VERSION, Perl $], $^X" );

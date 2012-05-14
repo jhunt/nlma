@@ -1,4 +1,4 @@
-package Nagios::Poller;
+package Nagios::Agent;
 
 use warnings;
 use strict;
@@ -33,7 +33,7 @@ sub daemonize
 	DEBUG("daemonizing");
 
 	open(SELFLOCK, "<$0") or die "Couldn't find $0: $!\n";
-	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another npoll daemon running?\n";
+	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another nlma daemon running?\n";
 	open(PIDFILE, ">$pid_file") or die "Couldn't open $pid_file: $!\n";
 	my $uid = getpwnam($user) or die "User $user does not exist\n";
 	my $gid = getgrnam($group) or die "Group $group does not exist\n";
@@ -248,7 +248,7 @@ sub parse_config
 		DEBUG("no config for daemon group: using default of $config->{group}");
 	}
 	if (!exists $config->{pid_file}) {
-		$config->{pid_file} = "/var/run/npoll.pid";
+		$config->{pid_file} = "/var/run/nlma.pid";
 		DEBUG("no config for pid file: using default of $config->{pid_file}");
 	}
 	if (!exists $config->{parents}) {
@@ -280,7 +280,7 @@ sub parse_config
 	$config->{dump} = abs_path($config->{dump});
 
 	if (!exists $config->{errlog}) {
-		$config->{errlog} = "/var/log/npoll_err";
+		$config->{errlog} = "/var/log/nlma_error";
 		DEBUG("no config for errlog: using default of $config->{errlog}");
 	}
 	$config->{errlog} = abs_path($config->{errlog});
@@ -306,7 +306,7 @@ sub parse_config
 		DEBUG("no config for checkin interval: using default of $config->{checkin}->{interval}");
 	}
 	if (!exists $config->{checkin}->{service}) {
-		$config->{checkin}->{service} = "npoll_checkin";
+		$config->{checkin}->{service} = "nlma_checkin";
 		DEBUG("no config for checkin service: using default of $config->{checkin}->{service}");
 	}
 
@@ -367,7 +367,7 @@ sub dump_config
 {
 	my ($config, $checks) = @_;
 
-	my $file = "$config->{dump}/npoll.".gettimeofday().".yml";
+	my $file = "$config->{dump}/nlma.".gettimeofday().".yml";
 	INFO("dumping config+checks to $file");
 
 	my $fh;
@@ -475,7 +475,7 @@ sub configure_syslog
 		'log4perl.rootLogger'                => "DEBUG,SYSLOG",
 		'log4perl.appender.SYSLOG'           => "Log::Dispatch::Syslog",
 		'log4perl.appender.SYSLOG.min_level' => $logcfg->{level} || "warning",
-		'log4perl.appender.SYSLOG.ident'     => 'npoll',
+		'log4perl.appender.SYSLOG.ident'     => 'nlma',
 		"log4perl.appender.SYSLOG.facility"  => $logcfg->{facility} || "daemon",
 		'log4perl.appender.SYSLOG.layout'    => "Log::Log4perl::Layout::PatternLayout",
 		'log4perl.appender.SYSLOG.layout.ConversionPattern' => "[%P] %m",
@@ -536,7 +536,7 @@ sub runall
 
 	Log::Log4perl->easy_init($INFO);
 
-	INFO("npoll v$VERSION starting up");
+	INFO("nlma v$VERSION starting up");
 	INFO("configured to run ",scalar @$checks," checks");
 
 	for my $check (@$checks) {
@@ -561,7 +561,7 @@ sub start
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
 
-	INFO("npoll v$VERSION starting up");
+	INFO("nlma v$VERSION starting up");
 	INFO("configured to run ",scalar @$checks," checks");
 
 	$SIG{HUP}  = \&sighup_handler;
@@ -639,12 +639,12 @@ sub start
 
 =head1 NAME
 
-Nagios::Poller - Nagios Local Check Agent
+Nagios::Agent - Nagios Local Check Agent
 
 =head1 DESCRIPTION
 
-The Nagios::Poller module implements the guts of the B<npoll> command.
-Administrators looking to configure or use npoll should see npoll(1).
+The Nagios::Agent module implements the guts of the B<nlma> command.
+Administrators looking to configure or use nlma should see nlma(1).
 
 =head1 METHODS
 
@@ -652,9 +652,9 @@ Administrators looking to configure or use npoll should see npoll(1).
 
 =item B<start($class, $config_file, $foreground)>
 
-Initiates the Nagios::Poller scheduling loop, like this:
+Initiates the Nagios::Agent scheduling loop, like this:
 
-  Nagios::Poller->start("/etc/npoll.yml")
+  Nagios::Agent->start("/etc/nlma.yml")
 
 The $config_file argument will be turned into an absolute path if it
 is not, so that SIGHUP reconfiguration still works when daemonized
@@ -666,13 +666,13 @@ of 1.
 
 If $foreground is passed, and is a true value, the poller will run in
 so-called "foreground" mode; all logging is done to stderr and the
-process does not fork into the background.  See npoll(1) for details.
+process does not fork into the background.  See nlma(1) for details.
 
 =item B<runall($class, $config_file)>
 
 Ignore scheduling and run all configured checks, for testing.
 
-  Nagios::Poller->runall("/etc/npoll.yml")
+  Nagios::Agent->runall("/etc/nlma.yml")
 
 After each check has been run, it will not be re-scheduled.
 
@@ -718,7 +718,7 @@ prepend relative path command definitions.
 Perform necessary accounting actions, like calculating check duration
 and determining child output and exit code.  The $status variable
 should come from the waitpid call, and tells reap_check if the check
-exited of its own accord, or was killed (either by the Poller, or
+exited of its own accord, or was killed (either by the Agent, or
 some other signal).
 
 This function handles various edge cases, including check runs that
@@ -733,7 +733,7 @@ pertain to.
 
 =item B<parse_config($file)>
 
-Parse the Nagios::Poller YAML configuration, supplying default values
+Parse the Nagios::Agent YAML configuration, supplying default values
 where appropriate.  Returns two values, the global configuration and
 an array of normalized check definitions.
 
@@ -767,7 +767,7 @@ already exited (i.e. normal operation).
 
 Configures the Log::Log4perl subsystem to send log messages to the
 appropriate syslog facility.  Used at startup and during SIGHUP
-reconfiguration (unless the Poller is running in foreground mode).
+reconfiguration (unless the Agent is running in foreground mode).
 
 =item B<checkin($config)>
 
@@ -788,6 +788,6 @@ Signal handles for dealing with external control mechanisms.
 
 =head1 AUTHOR
 
-Nagios::Poller was written by James Hunt <jhunt@synacor.com>
+Nagios::Agent was written by James Hunt <jhunt@synacor.com>
 
 =cut

@@ -41,4 +41,4 @@ not_in_file_ok(README =>
   "'version information here'"  => qr/to provide version information/,
 );
 
-module_boilerplate_ok('lib/Nagios/Poller.pm');
+module_boilerplate_ok('lib/Nagios/Agent.pm');

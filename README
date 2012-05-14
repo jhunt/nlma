@@ -1,6 +1,6 @@
-Nagios-Poller
+Nagios-Agent
 
-Nagios::Poller is a host-side monitoring daemon that schedules and runs
+Nagios::Agent is a host-side monitoring daemon that schedules and runs
 check plugins locally and submits check results to one or more Nagios
 parent servers via NSCA.
 
@@ -18,11 +18,11 @@ SUPPORT AND DOCUMENTATION
 After installing, you can find documentation for this module with the
 perldoc command.
 
-    perldoc Nagios::Poller
+    perldoc Nagios::Agent
 
-There is a man page for the npoll utility as well.
+There is a man page for the nlma utility as well.
 
-    man npoll
+    man nlma
 
 COPYRIGHT AND LICENCE
 
