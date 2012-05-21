@@ -437,7 +437,7 @@ sub waitall
 	my ($config, $checks, $flags) = @_;
 	my %results = ();
 
-	while ( (my $child = waitpid(-1, $flags)) > 0) {
+	while ( (my $child = waitpid(-1, $flags || 0)) > 0) {
 		my $status = $?;
 
 		my $found = 0;
@@ -543,6 +543,8 @@ sub runall
 		INFO(">> running check $check->{name}");
 		run_check($check, $config->{plugin_root});
 	}
+
+	waitall($config, $checks);
 }
 
 sub start
