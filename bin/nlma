@@ -37,6 +37,11 @@ sub usage
 	print "      Ignore scheduling and execute all configured\n";
 	print "      checks serially; useful for testing.\n";
 	print "\n";
+	print " --noop, -n\n";
+	print "      When combined with --runall (-t), don't actually\n";
+	print "      submit check results up to NSCA listeners.\n";
+	print "      Local check plugins will still be executed!\n";
+	print "\n";
 	print " --verbose, -v\n";
 	print "      Increase verbosity.  Can be used multiple\n";
 	print "      times for increase verbosity.\n";
@@ -55,6 +60,7 @@ GetOptions(\%opt,
 	"help|h|?",
 	"foreground|F",
 	"runall|test|t",
+	"noop|n",
 	"verbose|v+",
 );
 
@@ -65,7 +71,7 @@ if ($opt{help}) {
 
 if ($opt{runall}) {
 	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 0;
-	Nagios::Agent->runall($opt{config});
+	Nagios::Agent->runall($opt{config}, $opt{noop});
 } else {
 	if ($opt{foreground}) {
 		my $level = $ERROR;
@@ -97,7 +103,7 @@ B<nlma> - The Nagios Polling Daemon
 
 =head1 SYNOPSIS
 
-nlma [-hFv] [-c /path/to/config.yml]
+nlma [-hFvtn] [-c /path/to/config.yml]
 
 =head1 DESCRIPTION
 
@@ -124,6 +130,29 @@ and check definitions; this option lets you specify a different path.
 Force nlma to remain in the foreground, instead of forking off as a daemon
 process.  In foreground mode, nlma will automatically redirect all logging
 to standard error, and honor the B<-v> flags.
+
+=item B<--runall>, B<--test>, B<-t>
+
+Perform a single pass through all configured checks, ignoring the schedule.
+Details of each check being run, including name, command and its output,
+will be printed to standard output.
+
+This flag is useful for immediately running all configured checks and
+submitting the results up to the appropriate NSCA servers.  If you
+just want to exercise the checks and not do the NSCA submission, use the
+B<--noop> flag in conjunction.
+
+In runall mode, B<nlma> will attempt to drop privileges so that it runs
+as the user and group in the configuration.  As such, you must either
+run the command as that user initially, or as root.
+
+B<nlma> will not fork off into the background when run with this argument.
+
+=item B<--noop>, B<-n>
+
+When combined with B<--runall> (B<-t>), skip the submission of check results
+to NSCA servers.  Note that all checks will actually be run, and incur any
+side effects.
 
 =item B<--verbose>, B<-v>
 

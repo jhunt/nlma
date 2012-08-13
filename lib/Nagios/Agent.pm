@@ -28,6 +28,21 @@ my @RUNTIMES = ();
 
 my $ERRLOG;
 
+sub drop_privs
+{
+	my ($user, $group) = @_;
+
+	my $uid = getpwnam($user)  or die "User $user does not exist\n";
+	my $gid = getgrnam($group) or die "Group $group does not exist\n";
+
+	if ($) != $gid) {
+		setgid($gid) || die "Could not setgid to $group group\n";
+	}
+	if ($> != $uid) {
+		setuid($uid) || die "Could not setuid to $user user\n";
+	}
+}
+
 sub daemonize
 {
 	my ($user, $group, $pid_file) = @_;
@@ -37,11 +52,8 @@ sub daemonize
 	open(SELFLOCK, "<$0") or die "Couldn't find $0: $!\n";
 	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another nlma daemon running?\n";
 	open(PIDFILE, ">$pid_file") or die "Couldn't open $pid_file: $!\n";
-	my $uid = getpwnam($user) or die "User $user does not exist\n";
-	my $gid = getgrnam($group) or die "Group $group does not exist\n";
 
-	setgid($gid) || die "Could not setgid to $group group";
-	setuid($uid) || die "Could not setuid to $user user";
+	drop_privs($user, $group);
 
 	open STDIN,  "</dev/null" or die "daemonize: failed to reopen STDIN\n";
 	open STDOUT, ">/dev/null" or die "daemonize: failed to reopen STDOUT\n";
@@ -526,7 +538,7 @@ sub sigusr1_handler { $DUMPCONFIG = 1; }
 
 sub runall
 {
-	my ($class, $config_file) = @_;
+	my ($class, $config_file, $noop) = @_;
 
 	$config_file = abs_path($config_file);
 	if (!-r $config_file) {
@@ -534,11 +546,15 @@ sub runall
 		exit 1;
 	}
 
+
 	my ($config, $checks) = parse_config($config_file);
+	print "nlma v$VERSION starting up (running as $config->{user}:$config->{group})\n";
+	drop_privs($config->{user}, $config->{group});
+
 	open $ERRLOG, ">>", $config->{errlog};
 
-	print "nlma v$VERSION starting up\n";
 	print "configured to run ",scalar @$checks," checks\n";
+	print "NOOP: running under --noop; not submitting check results.\n" if $noop;
 	print "\n";
 
 	my %results = ();
@@ -551,6 +567,11 @@ sub runall
 		print "   OUTPUT: '$check->{output}'\n";
 		print "\n";
 		push @{$results{$check->{environment}}}, $check;
+	}
+
+	if ($noop) {
+		print "NOOP: running under --noop; not submitting check results.\n";
+		return;
 	}
 
 	for my $env (keys %results) {
