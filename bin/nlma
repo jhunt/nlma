@@ -64,6 +64,7 @@ if ($opt{help}) {
 }
 
 if ($opt{runall}) {
+	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 0;
 	Nagios::Agent->runall($opt{config});
 } else {
 	if ($opt{foreground}) {

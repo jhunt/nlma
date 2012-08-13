@@ -26,6 +26,8 @@ use constant TICK => 1000;
 # for check-in result
 my @RUNTIMES = ();
 
+my $ERRLOG;
+
 sub daemonize
 {
 	my ($user, $group, $pid_file) = @_;
@@ -98,10 +100,10 @@ sub run_check
 	if ($pid == 0) {
 		my $name = "check $check->{name}";
 		close STDERR;
-		open STDERR, ">&", \*ERRLOG or WARN("$name STDERR reopen failed: ignoring check error output");
+		open STDERR, ">&", \$ERRLOG or WARN("$name STDERR reopen failed: ignoring check error output");
 
 		close STDOUT;
-		open STDOUT, ">&", \*$writefd or ERROR("$name STDOUT reopen failed: cannot get check output");
+		open STDOUT, ">&", \$writefd or ERROR("$name STDOUT reopen failed: cannot get check output");
 
 		close $readfd;
 		close STDIN;
@@ -207,6 +209,7 @@ sub send_nsca
 		close NSCA_WRITE;
 		close STDIN;
 		open(STDIN, "<&NSCA_READ") or FATAL("send_nsca failed to reopen STDIN: $!");
+		close STDOUT;
 		exec(@command) or do {
 			FATAL("exec send_nsca failed: $!");
 			exit 42;
@@ -532,19 +535,33 @@ sub runall
 	}
 
 	my ($config, $checks) = parse_config($config_file);
-	open ERRLOG, ">>", $config->{errlog};
+	open $ERRLOG, ">>", $config->{errlog};
 
-	Log::Log4perl->easy_init($INFO);
+	print "nlma v$VERSION starting up\n";
+	print "configured to run ",scalar @$checks," checks\n";
+	print "\n";
 
-	INFO("nlma v$VERSION starting up");
-	INFO("configured to run ",scalar @$checks," checks");
+	my %results = ();
 
 	for my $check (@$checks) {
-		INFO(">> running check $check->{name}");
+		print "$check->{name}\n";
+		print "   `$check->{command}`\n";
 		run_check($check, $config->{plugin_root});
+		reap_check($check);
+		print "   OUTPUT: '$check->{output}'\n";
+		print "\n";
+		push @{$results{$check->{environment}}}, $check;
 	}
 
-	waitall($config, $checks);
+	for my $env (keys %results) {
+		for my $parent (@{$config->{parents}{$env}}) {
+			print "NSCA: $env \@$parent\n";
+			for my $check (@{$results{$env}}) {
+				print "   $check->{name}\n";
+			}
+			send_nsca($parent, $config->{send_nsca}, $config->{hostname}, @{$results{$env}});
+		}
+	}
 }
 
 sub start
@@ -558,7 +575,7 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
-	open ERRLOG, ">>", $config->{errlog};
+	open $ERRLOG, ">>", $config->{errlog};
 
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
@@ -581,8 +598,8 @@ sub start
 			my ($newconfig, $newchecks) = parse_config($config_file);
 
 			if ($newconfig->{errlog} ne $config->{errlog}) {
-				close ERRLOG;
-				open ERRLOG, ">>", $newconfig->{errlog};
+				close $ERRLOG;
+				open $ERRLOG, ">>", $newconfig->{errlog};
 
 			}
 			$config = $newconfig;
