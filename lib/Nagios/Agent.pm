@@ -26,6 +26,23 @@ use constant TICK => 1000;
 # for check-in result
 my @RUNTIMES = ();
 
+my $ERRLOG;
+
+sub drop_privs
+{
+	my ($user, $group) = @_;
+
+	my $uid = getpwnam($user)  or die "User $user does not exist\n";
+	my $gid = getgrnam($group) or die "Group $group does not exist\n";
+
+	if ($) != $gid) {
+		setgid($gid) || die "Could not setgid to $group group\n";
+	}
+	if ($> != $uid) {
+		setuid($uid) || die "Could not setuid to $user user\n";
+	}
+}
+
 sub daemonize
 {
 	my ($user, $group, $pid_file) = @_;
@@ -35,11 +52,8 @@ sub daemonize
 	open(SELFLOCK, "<$0") or die "Couldn't find $0: $!\n";
 	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another nlma daemon running?\n";
 	open(PIDFILE, ">$pid_file") or die "Couldn't open $pid_file: $!\n";
-	my $uid = getpwnam($user) or die "User $user does not exist\n";
-	my $gid = getgrnam($group) or die "Group $group does not exist\n";
 
-	setgid($gid) || die "Could not setgid to $group group";
-	setuid($uid) || die "Could not setuid to $user user";
+	drop_privs($user, $group);
 
 	open STDIN,  "</dev/null" or die "daemonize: failed to reopen STDIN\n";
 	open STDOUT, ">/dev/null" or die "daemonize: failed to reopen STDOUT\n";
@@ -98,10 +112,10 @@ sub run_check
 	if ($pid == 0) {
 		my $name = "check $check->{name}";
 		close STDERR;
-		open STDERR, ">&", \*ERRLOG or WARN("$name STDERR reopen failed: ignoring check error output");
+		open STDERR, ">&", \$ERRLOG or WARN("$name STDERR reopen failed: ignoring check error output");
 
 		close STDOUT;
-		open STDOUT, ">&", \*$writefd or ERROR("$name STDOUT reopen failed: cannot get check output");
+		open STDOUT, ">&", \$writefd or ERROR("$name STDOUT reopen failed: cannot get check output");
 
 		close $readfd;
 		close STDIN;
@@ -207,6 +221,7 @@ sub send_nsca
 		close NSCA_WRITE;
 		close STDIN;
 		open(STDIN, "<&NSCA_READ") or FATAL("send_nsca failed to reopen STDIN: $!");
+		close STDOUT;
 		exec(@command) or do {
 			FATAL("exec send_nsca failed: $!");
 			exit 42;
@@ -523,7 +538,7 @@ sub sigusr1_handler { $DUMPCONFIG = 1; }
 
 sub runall
 {
-	my ($class, $config_file) = @_;
+	my ($class, $config_file, $noop) = @_;
 
 	$config_file = abs_path($config_file);
 	if (!-r $config_file) {
@@ -531,20 +546,43 @@ sub runall
 		exit 1;
 	}
 
+
 	my ($config, $checks) = parse_config($config_file);
-	open ERRLOG, ">>", $config->{errlog};
+	print "nlma v$VERSION starting up (running as $config->{user}:$config->{group})\n";
+	drop_privs($config->{user}, $config->{group});
 
-	Log::Log4perl->easy_init($INFO);
+	open $ERRLOG, ">>", $config->{errlog};
 
-	INFO("nlma v$VERSION starting up");
-	INFO("configured to run ",scalar @$checks," checks");
+	print "configured to run ",scalar @$checks," checks\n";
+	print "NOOP: running under --noop; not submitting check results.\n" if $noop;
+	print "\n";
+
+	my %results = ();
 
 	for my $check (@$checks) {
-		INFO(">> running check $check->{name}");
+		print "$check->{name}\n";
+		print "   `$check->{command}`\n";
 		run_check($check, $config->{plugin_root});
+		reap_check($check);
+		print "   OUTPUT: '$check->{output}'\n";
+		print "\n";
+		push @{$results{$check->{environment}}}, $check;
 	}
 
-	waitall($config, $checks);
+	if ($noop) {
+		print "NOOP: running under --noop; not submitting check results.\n";
+		return;
+	}
+
+	for my $env (keys %results) {
+		for my $parent (@{$config->{parents}{$env}}) {
+			print "NSCA: $env \@$parent\n";
+			for my $check (@{$results{$env}}) {
+				print "   $check->{name}\n";
+			}
+			send_nsca($parent, $config->{send_nsca}, $config->{hostname}, @{$results{$env}});
+		}
+	}
 }
 
 sub start
@@ -558,7 +596,7 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
-	open ERRLOG, ">>", $config->{errlog};
+	open $ERRLOG, ">>", $config->{errlog};
 
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
@@ -581,8 +619,8 @@ sub start
 			my ($newconfig, $newchecks) = parse_config($config_file);
 
 			if ($newconfig->{errlog} ne $config->{errlog}) {
-				close ERRLOG;
-				open ERRLOG, ">>", $newconfig->{errlog};
+				close $ERRLOG;
+				open $ERRLOG, ">>", $newconfig->{errlog};
 
 			}
 			$config = $newconfig;
