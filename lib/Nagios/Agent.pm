@@ -702,6 +702,12 @@ file descriptors, and becoming a child of init(1)
 Update the B<next_run> time for a check, based on the last time it
 started execution, and its interval.
 
+=item B<drop_privs($user, $group)>
+
+Attempts to drop user privileges by switching the effective UID and
+GID to the passed user and group.  If the process is already executing
+under those effective IDs, setuid and/or setgid are not called.
+
 =item B<run_check($check, $root)>
 
 Fork a child process, with a uni-directional pipe, and execute the
