@@ -1,0 +1,16 @@
+---
+startup_splay: 10
+plugin_root: /check
+---
+check_cpu:
+  command:  cpu
+  interval: 15
+check_raid:
+  command:  raid
+  interval: 1500
+check_mem:
+  command:  memory
+  interval: 300
+check_disk:
+  command:  disk
+  interval: 300

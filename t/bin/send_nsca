@@ -1,0 +1,18 @@
+#!/usr/bin/perl
+
+# Mock send_nsca script, that will write stdin to a file
+# named after the host+port in t/tmp
+
+use Getopt::Long;
+
+my %opts = ();
+GetOptions(\%opts, 'host|H=s', 'port|p=i');
+
+my $file = "t/tmp/$opts{host}.$opts{port}.nsca";
+open OUTFILE, '>', $file or die "Failed to open $file read-write";
+
+while (<>) {
+	print OUTFILE;
+}
+
+close OUTFILE;

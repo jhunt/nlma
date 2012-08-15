@@ -111,6 +111,7 @@ sub run_check
 
 	if ($pid == 0) {
 		my $name = "check $check->{name}";
+
 		close STDERR;
 		open STDERR, ">&", \$ERRLOG or WARN("$name STDERR reopen failed: ignoring check error output");
 
@@ -236,7 +237,8 @@ sub send_nsca
 	}
 	close NSCA_WRITE;
 
-	return $pid;
+	waitpid($pid, 0);
+	return 0;
 }
 
 sub parse_config
@@ -338,7 +340,7 @@ sub parse_config
 		$check->{timeout} = $check->{timeout} || $config->{timeout};
 
 		# Default interval of 5 minutes
-		$check->{interval} = $check->{timeout} || $config->{interval};
+		$check->{interval} = $check->{interval} || $config->{interval};
 
 		# Default attempts of 1
 		$check->{attempts} = $check->{attempts} || 1;
@@ -527,13 +529,13 @@ sub checkin
 	@RUNTIMES = ();
 }
 
-my $RECONFIG = 0;
+our $RECONFIG = 0;
 sub sighup_handler { $RECONFIG = 1; }
 
-my $TERM = 0;
+our $TERM = 0;
 sub sigterm_handler { $TERM = 1; }
 
-my $DUMPCONFIG = 0;
+our $DUMPCONFIG = 0;
 sub sigusr1_handler { $DUMPCONFIG = 1; }
 
 sub runall
@@ -563,7 +565,8 @@ sub runall
 		print "$check->{name}\n";
 		print "   `$check->{command}`\n";
 		run_check($check, $config->{plugin_root});
-		reap_check($check);
+		waitpid($check->{pid}, 0);
+		reap_check($check, $?);
 		print "   OUTPUT: '$check->{output}'\n";
 		print "\n";
 		push @{$results{$check->{environment}}}, $check;

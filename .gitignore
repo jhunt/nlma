@@ -14,3 +14,4 @@ Nagios-Agent-*
 *.rpm
 cover_db
 .*.swp
+t/tmp/*

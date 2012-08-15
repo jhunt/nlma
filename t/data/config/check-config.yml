@@ -1,0 +1,18 @@
+---
+timeout: 33
+interval: 44
+plugin_root: /check
+---
+check1:
+  command:  dummy
+check2:
+  name:     second_check
+  command:  dummy
+  interval: 20
+  attempts: 4
+  retry:    11
+  timeout:  6
+  environment: dev
+check3:
+  command:  dummy
+  interval: 10

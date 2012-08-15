@@ -1,0 +1,7 @@
+---
+parents:
+  prod:
+    - prod01.example.com
+    - prod02.example.com
+  staging:
+    - stage01.example.com
