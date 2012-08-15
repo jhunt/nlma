@@ -7,6 +7,7 @@ use POSIX;
 use Fcntl qw(LOCK_EX LOCK_NB);
 use Cwd qw(abs_path);
 use Sys::Hostname qw(hostname);
+use File::Temp qw(tempfile);
 
 use Time::HiRes qw(gettimeofday usleep);
 use YAML;
@@ -25,8 +26,6 @@ use constant TICK => 1000;
 
 # for check-in result
 my @RUNTIMES = ();
-
-my $ERRLOG;
 
 sub drop_privs
 {
@@ -103,6 +102,9 @@ sub run_check
 	}
 	INFO("executing '$command' via /bin/sh -c");
 
+	(my $fh, $check->{stderr_out}) = tempfile();
+	close $fh; # don't need the file handle, just the filename
+
 	my $pid = fork();
 	if ($pid < 0) {
 		ERROR("fork failed for check $check->{name}");
@@ -113,7 +115,7 @@ sub run_check
 		my $name = "check $check->{name}";
 
 		close STDERR;
-		open STDERR, ">&", \$ERRLOG or WARN("$name STDERR reopen failed: ignoring check error output");
+		open STDERR, ">", $check->{stderr_out} or WARN("$name STDERR reopen failed: ignoring check error output");
 
 		close STDOUT;
 		open STDOUT, ">&", \$writefd or ERROR("$name STDOUT reopen failed: cannot get check output");
@@ -173,6 +175,20 @@ sub reap_check
 
 	} else {
 		$check->{is_soft_state} = 1;
+	}
+
+	$check->{stderr} = '';
+	if (exists($check->{stderr_out}) && open(my $fh, '<', $check->{stderr_out})) {
+		while (<$fh>) {
+			$check->{stderr} .= $_;
+			chomp;
+			ERROR("STDERR($check->{name}): $_");
+		}
+		close $fh;
+		unlink $check->{stderr_out};
+		#delete $check->{stderr_out};
+	} else {
+		ERROR("check $check->{name} failed to read in STDERR file");
 	}
 
 	DEBUG("check $check->{name} :: last_state:$check->{last_state}, state:$check->{state}, attempts:$check->{current}/$check->{attempts}, soft:$check->{is_soft_state}");
@@ -295,12 +311,6 @@ sub parse_config
 		DEBUG("no config for dump directory: using default of $config->{dump}");
 	}
 	$config->{dump} = abs_path($config->{dump});
-
-	if (!exists $config->{errlog}) {
-		$config->{errlog} = "/var/log/nlma_error";
-		DEBUG("no config for errlog: using default of $config->{errlog}");
-	}
-	$config->{errlog} = abs_path($config->{errlog});
 
 	if (!exists $config->{startup_splay}) {
 		$config->{startup_splay} = 15;
@@ -553,8 +563,6 @@ sub runall
 	print "nlma v$VERSION starting up (running as $config->{user}:$config->{group})\n";
 	drop_privs($config->{user}, $config->{group});
 
-	open $ERRLOG, ">>", $config->{errlog};
-
 	print "configured to run ",scalar @$checks," checks\n";
 	print "NOOP: running under --noop; not submitting check results.\n" if $noop;
 	print "\n";
@@ -599,7 +607,6 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
-	open $ERRLOG, ">>", $config->{errlog};
 
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
@@ -621,11 +628,8 @@ sub start
 			$RECONFIG = 0;
 			my ($newconfig, $newchecks) = parse_config($config_file);
 
-			if ($newconfig->{errlog} ne $config->{errlog}) {
-				close $ERRLOG;
-				open $ERRLOG, ">>", $newconfig->{errlog};
+			# Do any new-config, old-config transitional tasks
 
-			}
 			$config = $newconfig;
 			configure_syslog($config->{log}) unless $foreground;
 
