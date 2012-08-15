@@ -19,7 +19,7 @@ use YAML::XS;
 	isnt($yaml, '', "YAML dumped");
 
 	my ($config2, $checks2) = Load($yaml);
-	close $dh;
+	close $fh;
 	ok($config2, "Retrieved global configuration section from dump file");
 	ok($checks2, "Retrieved check definitions section from dump file");
 }

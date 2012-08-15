@@ -3,6 +3,7 @@
 use Test::More;
 do "t/common.pl";
 
+plan skip_all => "zz.perms.t only makes sense if TEST_ALL is set" unless TEST_ALL();
 plan skip_all => "Skipping final chown (not running as root)" unless $> == 0;
 plan tests => 1;
 
