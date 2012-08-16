@@ -674,7 +674,17 @@ sub start
 
 	if ($TERM) {
 		INFO("SIGTERM caught; exiting");
-		waitall($config, $checks);
+		# Reap child processes that are ready to go
+		waitall($config, $checks, POSIX::WNOHANG);
+
+		# Anyone else must be forcibly killed
+		for my $check (@$checks) {
+			next if $check->{pid} <= 0;
+
+			INFO("killing $check->{name} pid $check->{pid} with SIGKILL");
+			kill(KILL => $check->{pid});
+			waitpid($check->{pid}, 0);
+		}
 	}
 }
 
