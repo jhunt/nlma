@@ -1,4 +1,5 @@
 #!/bin/bash
 
+echo "this is standard error" >&2
 echo "I am $USER"
 exit 0
