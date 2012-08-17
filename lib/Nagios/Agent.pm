@@ -15,7 +15,7 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
-our $VERSION = '2.0';
+our $VERSION = '2.1';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -249,7 +249,7 @@ sub send_nsca
 	close NSCA_READ;
 	for my $c (@checks) {
 		DEBUG("send_nsca: write '".join("\t", $host, $c->{name}, $c->{exit_status}, $c->{output})."'");
-		print NSCA_WRITE join("\t", $host, $c->{name}, $c->{exit_status}, $c->{output})."\n";
+		print NSCA_WRITE join("\t", $host, $c->{name}, $c->{exit_status}, $c->{output})."\n\x17";
 	}
 	close NSCA_WRITE;
 

@@ -29,11 +29,14 @@ my $SEND_NSCA = "t/bin/send_nsca";
 	open my $fh, "<", $FILE or fail("couldn't open $FILE: $!");
 	my $line;
 
-	$line = <$fh>;
-	is($line, "mock_host\tcheck1\t0\tOK:check1 is fine\n", "line 1 is correct");
+	# \x17 is required for nsca to properly process results...
+	local $/ = "\n\x17";
 
 	$line = <$fh>;
-	is($line, "mock_host\tcheck2\t2\tCRIT:check2 is critical\n", "line 2 is correct");
+	is($line, "mock_host\tcheck1\t0\tOK:check1 is fine\n\x17", "line 1 is correct");
+
+	$line = <$fh>;
+	is($line, "mock_host\tcheck2\t2\tCRIT:check2 is critical\n\x17", "line 2 is correct");
 
 	close $fh;
 }
