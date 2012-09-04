@@ -81,4 +81,13 @@ my $NOW = time;
 	is($check->{is_soft_state}, 0, "WARNING -> WARNING is a hard state");
 }
 
+{ # Multiline output
+	my $check = mock_check({
+			name => 'multiline',
+			pipe => IO::String->new(join("\n", qw(this is output on multiple lines))),
+	});
+	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
+	is($check->{output}, "this / is / output / on / multiple / lines");
+}
+
 done_testing;
