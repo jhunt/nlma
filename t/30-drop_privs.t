@@ -6,7 +6,7 @@ use Nagios::Agent;
 use File::Temp qw(tempfile);
 
 plan skip_all => "Set TEST_ALL to enable drop_privs tests" unless TEST_ALL();
-plan skip_all => "Run the test suite as root to enable drop_rpvies tests"
+plan skip_all => "Run the test suite as root to enable drop_privs tests"
 	unless $) == 0 and $( == 0;
 
 {
