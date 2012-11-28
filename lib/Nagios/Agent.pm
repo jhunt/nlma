@@ -196,7 +196,8 @@ sub reap_check
 
 	$check->{pid} = -1;
 	my $buf = "";
-	my $n = read($check->{pipe}, $buf, 8192);
+	# only read 4096 bytes, since that is the upper limit on an NSCA packet
+	my $n = read($check->{pipe}, $buf, 4096);
 	close $check->{pipe};
 
 	if (!defined $n) {
@@ -208,8 +209,12 @@ sub reap_check
 		$check->{exit_status} = 3; # UNKNOWN
 		$buf = "check timed out";
 	}
-	my @l = split /[\r\n]/, $buf, 2;
-	$buf = shift(@l) || '';
+	# Drop the last trailing newline
+	$buf =~ s/\r?\n$//m;
+
+	# per ITM-1603, handle multiline output by replacing \n with a forward slash.
+	# FIXME: ITM-1605 reminds us to take this out and return real newlines
+	$buf =~ s/\r?\n/ \/ /mg;
 	$check->{output} = $buf eq "" ? "(no check output)" : $buf;
 
 	$check->{pipe} = undef;
