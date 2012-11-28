@@ -522,7 +522,7 @@ sub checkin
 			$total_time += $runtime
 		}
 		$nchecks = @RUNTIMES;
-		$avg_time = sprintf("%0.3f", $total_time / 1000000 / $nchecks);
+		$avg_time = sprintf("%.3f", $total_time / $nchecks);
 	}
 
 	my $fake_check = {
