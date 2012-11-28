@@ -533,7 +533,7 @@ sub checkin
 	my $fake_check = {
 		name => $config->{checkin}->{service},
 		exit_status => 0,
-		output => "$nchecks checks run, ${avg_time}s average runtime",
+		output => "$nchecks checks run, ${avg_time}s average runtime| nchecks=$nchecks;;;; avgTime=$avg_time;;;;",
 	};
 	DEBUG("CHECKIN - $fake_check->{output}");
 
