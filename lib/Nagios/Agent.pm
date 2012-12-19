@@ -225,7 +225,7 @@ sub reap_check
 
 sub send_nsca
 {
-	my ($parent, $cmd, $host, @checks) = @_;
+	my ($parent, $cmd, @checks) = @_;
 	my ($address, $port) = split(/:/, $parent);
 
 	my @command = (split(/\s+/, $cmd), "-H", $address, "-p", $port);
@@ -253,8 +253,8 @@ sub send_nsca
 	DEBUG("send_nsca: child $pid forked");
 	close NSCA_READ;
 	for my $c (@checks) {
-		DEBUG("send_nsca: write '".join("\t", $host, $c->{name}, $c->{exit_status}, $c->{output})."'");
-		print NSCA_WRITE join("\t", $host, $c->{name}, $c->{exit_status}, $c->{output})."\n\x17";
+		DEBUG("send_nsca: write '".join("\t", $c->{hostname}, $c->{name}, $c->{exit_status}, $c->{output})."'");
+		print NSCA_WRITE join("\t", $c->{hostname}, $c->{name}, $c->{exit_status}, $c->{output})."\n\x17";
 	}
 	close NSCA_WRITE;
 
@@ -366,6 +366,9 @@ sub parse_config
 		# Use default check environment
 		$check->{environment} = $check->{environment} || 'default';
 
+		# Use global host definition by default
+		$check->{hostname} = $check->{hostname} || $config->{hostname};
+
 		DEBUG("$cname name is '$check->{name}'");
 		DEBUG("$cname environment is '$check->{environment}'");
 		DEBUG("$cname command is '$check->{command}'");
@@ -433,6 +436,7 @@ sub merge_check_defs
 			$oldcheck->{command}  = $newcheck->{command};
 			$oldcheck->{interval} = $newcheck->{interval};
 			$oldcheck->{timeout}  = $newcheck->{timeout};
+			$oldcheck->{hostname} = $newcheck->{hostname};
 
 			DEBUG("updating check definition for $oldcheck->{name}");
 
@@ -495,7 +499,7 @@ sub waitall
 	for my $env (keys %results) {
 		for my $parent (@{$config->{parents}{$env}}) {
 			DEBUG("sending ".scalar(@{$results{$env}}). " results to $parent");
-			send_nsca($parent, $config->{send_nsca}, $config->{hostname}, @{$results{$env}});
+			send_nsca($parent, $config->{send_nsca}, @{$results{$env}});
 		}
 	}
 }
@@ -531,6 +535,7 @@ sub checkin
 	}
 
 	my $fake_check = {
+		host => $config->{hostname},
 		name => $config->{checkin}->{service},
 		exit_status => 0,
 		output => "$nchecks checks run, ${avg_time}s average runtime| nchecks=$nchecks;;;; avgTime=$avg_time;;;;",
@@ -538,7 +543,7 @@ sub checkin
 	DEBUG("CHECKIN - $fake_check->{output}");
 
 	for my $parent (@{$config->{parents}{default}}) {
-		send_nsca($parent, $config->{send_nsca}, $config->{hostname}, $fake_check);
+		send_nsca($parent, $config->{send_nsca}, $fake_check);
 	}
 
 	@RUNTIMES = ();
@@ -596,7 +601,7 @@ sub runall
 			for my $check (@{$results{$env}}) {
 				print "   $check->{name}\n";
 			}
-			send_nsca($parent, $config->{send_nsca}, $config->{hostname}, @{$results{$env}});
+			send_nsca($parent, $config->{send_nsca}, @{$results{$env}});
 		}
 	}
 }
@@ -792,12 +797,10 @@ some other signal).
 This function handles various edge cases, including check runs that
 created no output, and check runs that were killed because of timeouts.
 
-=item B<send_nsca($parent, $cmd, $host, @checks)>
+=item B<send_nsca($parent, $cmd, @checks)>
 
 Fork a child process to submit results to a single Nagios parent via
-send_nsca (specified by $cmd).  $host is the hostname of the local node,
-which is used to inform the $parent which host these check results
-pertain to.
+send_nsca (specified by $cmd).
 
 =item B<parse_config($file)>
 
