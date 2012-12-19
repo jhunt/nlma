@@ -8,6 +8,7 @@ use Nagios::Agent;
 
 	my $old = [
 		{
+			hostname => 'localhost',
 			name     => 'check1',
 			timeout  => 45,
 			pid      => -1, # force re-schedule
@@ -22,6 +23,7 @@ use Nagios::Agent;
 			next_run   => $NOW + 100,
 		},
 		{
+			hostname => 'localhost',
 			name     => 'check2',
 			timeout  => 45,
 			pid      => 1010, # to avoid re-scheduling
@@ -42,6 +44,7 @@ use Nagios::Agent;
 	my $new = [ # can be in any order!
 		{ # update check2 with a new timeout
 			name        => 'check2',
+			hostname    => $old->[1]{hostname},    # unchanged
 			environment => $old->[1]{environment}, # unchanged
 			command     => $old->[1]{command},     # unchanged
 			interval    => $old->[1]{interval},    # unchanged
@@ -49,6 +52,7 @@ use Nagios::Agent;
 		},
 		{ # update check1 with new intervals
 			name        => 'check1',
+			hostname    => 'box01',
 			environment => 'staging',
 			command     => $old->[0]{command},     # unchanged
 			interval    => 60,
@@ -56,6 +60,7 @@ use Nagios::Agent;
 		},
 		{ # Create new check (check3)
 			name     => 'check3',
+			hostname => 'localhost',
 			timeout  => 40,
 			pid      => -1,
 			interval => 30,
@@ -71,6 +76,7 @@ use Nagios::Agent;
 #	$old->[0]{started_at} = $old->[0]{ended_at} = $old->[0]{next_run}   = 42;
 	is_deeply($old->[0], {
 			name        => "check1",
+			hostname    => 'box01', # CHANGED
 			timeout     => 45,
 			pid         => -1,
 			interval    => 60, # CHANGED
@@ -87,6 +93,7 @@ use Nagios::Agent;
 
 	is_deeply($old->[1], {
 			name        => "check2",
+			hostname    => 'localhost',
 			timeout     => 10, # CHANGED
 			pid         => 1010,
 			interval    => 300,
@@ -104,6 +111,7 @@ use Nagios::Agent;
 
 	is_deeply($old->[3], {
 			name        => "check3",
+			hostname    => 'localhost',
 			timeout     => 40,
 			pid         => -1,
 			interval    => 30,
