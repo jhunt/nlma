@@ -114,14 +114,10 @@ sub run_check
 	if ($pid == 0) {
 		my $name = "check $check->{name}";
 
-		close STDERR;
 		open STDERR, ">", $check->{stderr_out} or WARN("$name STDERR reopen failed: ignoring check error output");
-
-		close STDOUT;
 		open STDOUT, ">&", \$writefd or ERROR("$name STDOUT reopen failed: cannot get check output");
-
+		open STDIN, "</dev/null" or ERROR("Failed to reopen STDIN: $!");
 		close $readfd;
-		close STDIN;
 
 		exec("/bin/sh", "-c", $command) or do {
 			FATAL("$name exec failed: $!");
@@ -241,9 +237,10 @@ sub send_nsca
 
 	if ($pid == 0) {
 		close NSCA_WRITE;
-		close STDIN;
-		open(STDIN, "<&NSCA_READ") or FATAL("send_nsca failed to reopen STDIN: $!");
-		close STDOUT;
+		open STDIN, "<&NSCA_READ" or FATAL("send_nsca failed to reopen STDIN: $!");
+		open STDOUT, ">/dev/null" or FATAL("send_nsca failed to reopen STDOUT: $!");
+		open STDERR, ">/dev/null" or FATAL("send_nsca failed to reopen STDERR: $!");
+
 		exec(@command) or do {
 			FATAL("exec send_nsca failed: $!");
 			exit 42;
