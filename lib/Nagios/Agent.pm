@@ -255,7 +255,17 @@ sub send_nsca
 	}
 	close NSCA_WRITE;
 
-	waitpid($pid, 0);
+	return 0 if waitpid($pid, POSIX::WNOHANG) == $pid;
+	DEBUG("send_nsca not terminating... waiting for up to 2 seconds");
+
+	sleep(1);
+	return 0 if waitpid($pid, POSIX::WNOHANG) == $pid;
+
+	sleep(1);
+	return 0 if waitpid($pid, POSIX::WNOHANG) == $pid;
+
+	WARN("KILLING send_nsca process bound for $address:$port");
+	kill(9, $pid);
 	return 0;
 }
 
