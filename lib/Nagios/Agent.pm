@@ -542,7 +542,7 @@ sub checkin
 	}
 
 	my $fake_check = {
-		host => $config->{hostname},
+		hostname => $config->{hostname},
 		name => $config->{checkin}->{service},
 		exit_status => 0,
 		output => "$nchecks checks run, ${avg_time}s average runtime| nchecks=$nchecks;;;; avgTime=$avg_time;;;;",
