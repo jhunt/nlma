@@ -30,6 +30,25 @@ my $NOW = time;
 	is($check->{state}, 0, "check state is now 0");
 }
 
+{ # ITM-1957 - Attempt #3172/1 bug
+
+	# get a CRIT return val
+	`/bin/sh -c 'exit 2'`; my $crit_exit = $?;
+
+	my $check = mock_check({
+			name          => "check_attempts",
+			state         => 2, # Start out CRIT
+			is_soft_state => 1,
+			current       => 4321,
+			attempts      => 3,
+			pipe          => IO::String->new("still critical..."),
+	});
+	is(Nagios::Agent::reap_check($check, $crit_exit), 0, "reap_check returns 0 on success");
+	is($check->{is_soft_state}, 0, 'After 4321/3 attempts, we are not at a soft state anymore');
+	is($check->{current},  1, 'back to 1/3 attempts');
+	is($check->{state},    2, 'Critical State');
+}
+
 { # Weird return values (>3)
 	my $check = mock_check({
 			name => 'bad_rc',
