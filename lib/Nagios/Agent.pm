@@ -165,7 +165,7 @@ sub reap_check
 		$check->{is_soft_state} = 0;
 		$check->{current} = 1;
 
-	} elsif ($check->{current} == $check->{attempts}) {
+	} elsif ($check->{current} >= $check->{attempts}) {
 		$check->{is_soft_state} = 0;
 		$check->{current} = 1;
 
