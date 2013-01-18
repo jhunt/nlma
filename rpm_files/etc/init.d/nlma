@@ -39,7 +39,7 @@ start()
 stop()
 {
 	echo -n $"Stopping $NPOLL  "
-	killproc $BINDIR/$NPOLL -TERM
+	killproc $BINDIR/$NPOLL
 	# FIXME: wait for nlma to actually stop...
 	RETVAL=$?
 	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/$NPOLL
