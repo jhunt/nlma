@@ -34,6 +34,7 @@ start()
 	RETVAL=$?
 	[ "$RETVAL" = 0 ] && touch /var/lock/subsys/$NPOLL
 	echo
+	return $RETVAL
 }
 
 stop()
@@ -44,6 +45,7 @@ stop()
 	RETVAL=$?
 	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/$NPOLL
 	echo
+	return $RETVAL
 }
 
 reload()
@@ -53,6 +55,7 @@ reload()
 	RETVAL=$?
 	[ "$RETVAL" = 0 ] && rm -f /var/lock/subsys/$NPOLL
 	echo
+	return $RETVAL
 }
 
 case "$1" in
@@ -74,6 +77,5 @@ case "$1" in
 		;;
 	*)
 		echo $"Usage: $0 {start|stop|restart|reload|status}"
-		RETVAL=1
+		exit 1
 esac
-exit $RETVAL
