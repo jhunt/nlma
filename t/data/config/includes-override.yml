@@ -1,0 +1,10 @@
+---
+include:
+  - inc/override.yml
+---
+cpu:
+  command: dummy
+load:
+  command: dummy
+disks:
+  command: dummy

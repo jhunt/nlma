@@ -1,0 +1,13 @@
+---
+include:
+  - inc/DOES-NOT-EXIST.yml
+    # no .yml on web...
+  - inc/web
+  - /etc/no/such/file.yml
+---
+cpu:
+  command: dummy
+load:
+  command: dummy
+disks:
+  command: dummy

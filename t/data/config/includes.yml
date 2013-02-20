@@ -1,0 +1,11 @@
+---
+include:
+  - inc/database.yml
+  - inc/web.yml
+---
+cpu:
+  command: dummy
+load:
+  command: dummy
+disks:
+  command: dummy

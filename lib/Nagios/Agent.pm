@@ -15,7 +15,7 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
-our $VERSION = '2.1';
+our $VERSION = '2.2';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -269,17 +269,27 @@ sub send_nsca
 	return 0;
 }
 
+sub slurp
+{
+	my ($file) = @_;
+	open my $fh, "<", $file or return undef;
+	my $s = do { local $/; <$fh> };
+	close $fh;
+	return $s;
+}
+
 sub parse_config
 {
 	my ($file) = @_;
+	my $inc_dir = $file; $inc_dir =~ s/[^\/]*$//;
 
 	DEBUG("parsing configuration in $file");
 
-	open CONFIG, $file or return undef;
-	my $yaml = join('', <CONFIG>);
-	close CONFIG;
-
+	my $yaml = slurp($file) or return undef;
 	my ($config, $checks) = Load($yaml);
+	$config->{warnings} = [];
+	$config->{errors}   = [];
+
 	if (!exists $config->{hostname}) {
 		$config->{hostname} = hostname;
 		DEBUG("no config for hostname: using detected value of $config->{hostname}");
@@ -347,6 +357,39 @@ sub parse_config
 	if (!exists $config->{checkin}->{service}) {
 		$config->{checkin}->{service} = "nlma_checkin";
 		DEBUG("no config for checkin service: using default of $config->{checkin}->{service}");
+	}
+
+	if (exists $config->{include}) {
+		# Allow single include
+		$config->{include} = [$config->{include}] unless ref($config->{include}) eq 'ARRAY';
+
+		for my $file (@{$config->{include}}) {
+			my $inc_file = "$inc_dir/$file";
+			DEBUG("Including $inc_file");
+
+			$yaml = slurp($inc_file);
+			unless ($yaml) {
+				push @{$config->{errors}}, "Failed to read $file";
+				ERROR("Failed to read file $inc_file: $!");
+				next;
+			}
+
+			my $new_checks = Load($yaml);
+			for my $cname (keys %$new_checks) {
+
+				if (exists $checks->{$cname}) {
+					# Uh-oh, someone tried to redefine a check
+					# Log it as an error, ignore the override and send a Warning to SFR
+					push @{$config->{warnings}}, "Attempted to redefine '$cname' check in $file";
+					ERROR("Attempted to redefine '$cname' check in $inc_file");
+
+				} else {
+					$checks->{$cname} = $new_checks->{$cname};
+				}
+			}
+		}
+
+		delete $config->{include};
 	}
 
 	my @list = ();
@@ -541,13 +584,26 @@ sub checkin
 		$avg_time = sprintf("%.3f", $total_time / $nchecks);
 	}
 
+	my $perfdata = "nchecks=$nchecks;;;; avgTime=$avg_time;;;;";
+
 	my $fake_check = {
 		hostname => $config->{hostname},
 		name => $config->{checkin}->{service},
-		exit_status => 0,
-		output => "$nchecks checks run, ${avg_time}s average runtime| nchecks=$nchecks;;;; avgTime=$avg_time;;;;",
+		exit_status => 0, # OK
+		output => "$nchecks checks run, ${avg_time}s average runtime",
 	};
-	DEBUG("CHECKIN - $fake_check->{output}");
+
+	if (@{$config->{errors}}) {
+		$fake_check->{exit_status} = 2; # ERROR
+		$fake_check->{output} = join('.  ', @{$config->{errors}});
+
+	} elsif (@{$config->{warnings}}) {
+		$fake_check->{exit_status} = 1; # WARNING
+		$fake_check->{output} = join('.  ', @{$config->{warnings}});
+	}
+
+	$fake_check->{output} .= "| $perfdata";
+	DEBUG("CHECKIN - $fake_check->{hostname}/$fake_check->{name} ($fake_check->{exit_status}): $fake_check->{output}");
 
 	for my $parent (@{$config->{parents}{default}}) {
 		send_nsca($parent, $config->{send_nsca}, $fake_check);
@@ -808,6 +864,11 @@ created no output, and check runs that were killed because of timeouts.
 
 Fork a child process to submit results to a single Nagios parent via
 send_nsca (specified by $cmd).
+
+=item B<slurp($file)>
+
+Slurp the entire contents of a file into memory, and return it,
+or return B<undef> if an error condition occurs.
 
 =item B<parse_config($file)>
 

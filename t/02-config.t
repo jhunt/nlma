@@ -156,4 +156,51 @@ use Sys::Hostname qw(hostname);
 	cmp_ok($start, '>', time - 10, "First check scheduled to be run soon");
 }
 
+{ # Include files
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/includes.yml');
+
+	cmp_set([map { $_->{name} } @$checks],
+		[qw[cpu load disks database iowait apache]],
+		"Found all 6 checks");
+
+	cmp_set($config->{errors},   [], 'No errors on includes test');
+	cmp_set($config->{warnings}, [], 'No warnings on includes test');
+}
+
+{ # Including files that do not exist
+
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad-includes.yml');
+	cmp_set([map { $_->{name} } @$checks],
+		[qw[cpu load disks]],
+		"Found all 3 baseline checks");
+
+	cmp_set($config->{errors}, [
+			q(Failed to read inc/DOES-NOT-EXIST.yml),
+			q(Failed to read inc/web),
+			q(Failed to read /etc/no/such/file.yml),
+		], 'Bad file includes trigger criticals');
+	cmp_set($config->{warnings}, [], 'No warnings on bad includes');
+}
+
+{ # Including files that override other checks
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/includes-override.yml');
+
+	cmp_set([map { $_->{name} } @$checks],
+		[qw[cpu load disks newcheck]],
+		"Found 4 checks");
+
+	# Find the index of the 'cpu' check;
+	my $i;
+	for ($i = 0; $i < @$checks; $i++) {
+		last if $checks->[$i]{name} eq 'cpu';
+	}
+	ok(exists $checks->[$i], "Found cpu check");
+	is($checks->[$i]{command}, 'dummy', "cpu check command was not overridden");
+
+	cmp_set($config->{errors}, [], 'No errors on check redefinition');
+	cmp_set($config->{warnings}, [
+			q(Attempted to redefine 'cpu' check in inc/override.yml)
+		], "Check redefinition triggers warnings");
+}
+
 done_testing;

@@ -1,0 +1,6 @@
+---
+# try to override the CPU check
+cpu:
+  command: overridden
+newcheck:
+  command: overridden

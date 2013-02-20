@@ -1,0 +1,5 @@
+---
+database:
+  command: dummay
+iowait:
+  command: dummy
