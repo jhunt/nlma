@@ -6,6 +6,7 @@ include:
   - /etc/no/such/file.yml
   - inc/notyaml.png
   - inc/corrupt.yml
+  - /etc/passwd
 ---
 cpu:
   command: dummy

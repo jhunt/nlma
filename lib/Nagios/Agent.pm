@@ -364,7 +364,8 @@ sub parse_config
 		$config->{include} = [$config->{include}] unless ref($config->{include}) eq 'ARRAY';
 
 		for my $file (@{$config->{include}}) {
-			my $inc_file = "$inc_dir/$file";
+			my $inc_file = $file;
+			$inc_file = "$inc_dir/$file" unless substr($file,0,1) eq '/';
 			DEBUG("Including $inc_file");
 
 			$yaml = slurp($inc_file);

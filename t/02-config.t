@@ -180,6 +180,8 @@ use Sys::Hostname qw(hostname);
 			q(Failed to read /etc/no/such/file.yml),
 			q(Failed to parse inc/notyaml.png),
 			q(Failed to parse inc/corrupt.yml),
+			q(Failed to parse /etc/passwd), # this is the absolute file test;
+			                                # /etc/passwd should exist globally.
 		], 'Bad file includes trigger criticals');
 	cmp_set($config->{warnings}, [], 'No warnings on bad includes');
 }
