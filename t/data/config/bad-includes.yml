@@ -4,6 +4,8 @@ include:
     # no .yml on web...
   - inc/web
   - /etc/no/such/file.yml
+  - inc/notyaml.png
+  - inc/corrupt.yml
 ---
 cpu:
   command: dummy

@@ -374,7 +374,15 @@ sub parse_config
 				next;
 			}
 
-			my $new_checks = Load($yaml);
+			my $new_checks;
+			eval {
+				$new_checks = Load($yaml);
+				1;
+			} or do {
+				push @{$config->{errors}}, "Failed to parse $file";
+				ERROR("Failed to parse file $inc_file: $@");
+				next;
+			};
 			for my $cname (keys %$new_checks) {
 
 				if (exists $checks->{$cname}) {

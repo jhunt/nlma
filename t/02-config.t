@@ -178,6 +178,8 @@ use Sys::Hostname qw(hostname);
 			q(Failed to read inc/DOES-NOT-EXIST.yml),
 			q(Failed to read inc/web),
 			q(Failed to read /etc/no/such/file.yml),
+			q(Failed to parse inc/notyaml.png),
+			q(Failed to parse inc/corrupt.yml),
 		], 'Bad file includes trigger criticals');
 	cmp_set($config->{warnings}, [], 'No warnings on bad includes');
 }
