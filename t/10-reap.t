@@ -3,6 +3,7 @@
 use Test::More;
 use Nagios::Agent;
 use IO::String;
+use File::Temp qw/tempfile/;
 do "t/common.pl";
 
 #  Tests in this suite only work because the reap_check function
@@ -69,6 +70,22 @@ my $NOW = time;
 	is(Nagios::Agent::reap_check($check, 0x3401), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state is now 3");
 	is($check->{output}, "check timed out", 'KILLED should return timed-out output');
+}
+
+{ # ITM-2166 - STDERR output in place of STDOUT
+	my ($fh, $temp) = tempfile;
+	print $fh "this is a fail message\n";
+	close $fh;
+
+	my $check = mock_check({
+			name       => 'bad_sudo',
+			stderr_out => $temp,
+			pipe       => IO::String->new(''), # no output
+	});
+
+	is(Nagios::Agent::reap_check($check, 1), 0, "reap_check returns 0 on success");
+	is($check->{state}, 3, "check state is UNKNOWN if all we have is STDERR");
+	is($check->{output}, "ERROR: this is a fail message");
 }
 
 { # No check output

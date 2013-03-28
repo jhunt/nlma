@@ -15,7 +15,7 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
-our $VERSION = '2.2';
+our $VERSION = '2.3';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -26,6 +26,20 @@ use constant TICK => 1000;
 
 # for check-in result
 my @RUNTIMES = ();
+
+sub clean_check_output
+{
+	my ($buf) = @_;
+
+	# Drop the last trailing newline
+	$buf =~ s/\r?\n$//m;
+
+	# per ITM-1603, handle multiline output by replacing \n with a forward slash.
+	# FIXME: ITM-1605 reminds us to take this out and return real newlines
+	$buf =~ s/\r?\n/ \/ /mg;
+
+	return $buf;
+}
 
 sub drop_privs
 {
@@ -205,14 +219,16 @@ sub reap_check
 		$check->{exit_status} = 3; # UNKNOWN
 		$buf = "check timed out";
 	}
-	# Drop the last trailing newline
-	$buf =~ s/\r?\n$//m;
+	$buf = clean_check_output($buf);
 
-	# per ITM-1603, handle multiline output by replacing \n with a forward slash.
-	# FIXME: ITM-1605 reminds us to take this out and return real newlines
-	$buf =~ s/\r?\n/ \/ /mg;
-	$check->{output} = $buf eq "" ? "(no check output)" : $buf;
+	# if the plugin only wrote to STDERR (and not STDOUT), force
+	# an UNKNOWN state; something amy be wrong with the plugin...
+	if (!$buf and $buf = clean_check_output($check->{stderr})) {
+		$check->{exit_status} = 3; # UNKNOWN
+		$buf = "ERROR: $buf";
+	}
 
+	$check->{output} = $buf ? $buf : "(no check output)";
 	$check->{pipe} = undef;
 
 	DEBUG("check $check->{name} exited $check->{exit_status} with output '$check->{output}'");
@@ -820,6 +836,10 @@ After each check has been run, it will not be re-scheduled.
 =head1 INTERNAL METHODS
 
 =over
+
+=item B<clean_check_output($s)>
+
+Handle extraneous whitespace and miscellaneous fixups to check output.
 
 =item B<MAX($a, $b)>
 
