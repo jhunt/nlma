@@ -100,6 +100,17 @@ my $NOW = time;
 	is($check->{output}, "ERROR: errors are standard");
 }
 
+{ # ITM-2166 - Force UNKNOWNs for missing STDOUT, regardless of STDERR output
+	my $check = mock_check({
+			name => 'really_no_output',
+			pipe => IO::String->new(''), # no output
+	});
+
+	is(Nagios::Agent::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
+	is($check->{state}, 3, "check state promotes to UNKNOWN if there is no STDOUT");
+	is($check->{output}, "(no check output)");
+}
+
 { # No check output
 	my $check = mock_check({
 			name => 'no_output',

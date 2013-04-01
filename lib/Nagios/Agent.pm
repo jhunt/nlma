@@ -198,11 +198,15 @@ sub reap_check
 		ERROR("check $check->{name} failed to read in STDERR file");
 	}
 
-	# if the plugin only wrote to STDERR (and not STDOUT), force
+	# if the plugin did not produce output to STDOUT, force
 	# an UNKNOWN state; something amy be wrong with the plugin...
-	if (!$buf and $buf = clean_check_output($check->{stderr})) {
+	if (!$buf) {
 		$check->{exit_status} = 3; # UNKNOWN
-		$buf = "ERROR: $buf";
+
+		# Use STDERR if it is available.
+		if ($buf = clean_check_output($check->{stderr})) {
+			$buf = "ERROR: $buf";
+		}
 	}
 
 	$check->{output} = $buf ? $buf : "(no check output)";
