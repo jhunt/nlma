@@ -32,10 +32,6 @@ my $NOW = time;
 }
 
 { # ITM-1957 - Attempt #3172/1 bug
-
-	# get a CRIT return val
-	`/bin/sh -c 'exit 2'`; my $crit_exit = $?;
-
 	my $check = mock_check({
 			name          => "check_attempts",
 			state         => 2, # Start out CRIT
@@ -44,7 +40,7 @@ my $NOW = time;
 			attempts      => 3,
 			pipe          => IO::String->new("still critical..."),
 	});
-	is(Nagios::Agent::reap_check($check, $crit_exit), 0, "reap_check returns 0 on success");
+	is(Nagios::Agent::reap_check($check, mock_exit(2)), 0, "reap_check returns 0 on success");
 	is($check->{is_soft_state}, 0, 'After 4321/3 attempts, we are not at a soft state anymore');
 	is($check->{current},  1, 'back to 1/3 attempts');
 	is($check->{state},    2, 'Critical State');
@@ -69,7 +65,7 @@ my $NOW = time;
 
 	is(Nagios::Agent::reap_check($check, 0x3401), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state is now 3");
-	is($check->{output}, "check timed out", 'KILLED should return timed-out output');
+	is($check->{output}, "check timed out (exceeded NLMA timeout)", 'KILLED should return timed-out output');
 }
 
 { # ITM-2166 - STDERR output in place of STDOUT
@@ -83,9 +79,25 @@ my $NOW = time;
 			pipe       => IO::String->new(''), # no output
 	});
 
-	is(Nagios::Agent::reap_check($check, 1), 0, "reap_check returns 0 on success");
+	is(Nagios::Agent::reap_check($check, mock_exit(42)), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state is UNKNOWN if all we have is STDERR");
 	is($check->{output}, "ERROR: this is a fail message");
+}
+
+{ # ITM-2166 - Force UNKNOWNs for missing STDOUT, regardless of exit code
+	my ($fh, $temp) = tempfile;
+	print $fh "errors are standard\n";
+	close $fh;
+
+	my $check = mock_check({
+			name        => 'no_output',
+			stderr_out  => $temp,
+			pipe        => IO::String->new(''), # no output
+	});
+
+	is(Nagios::Agent::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
+	is($check->{state}, 3, "check state promotes to UNKNOWN if there is no STDOUT");
+	is($check->{output}, "ERROR: errors are standard");
 }
 
 { # No check output

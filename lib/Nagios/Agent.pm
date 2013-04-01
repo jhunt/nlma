@@ -166,27 +166,24 @@ sub reap_check
 
 	push @RUNTIMES, $check->{duration};
 
-	# calculate hard / soft state (for retry logic)
-	$check->{last_state} = $check->{state} unless $check->{is_soft_state};
-	$check->{state} = $check->{exit_status};
-	if ($check->{state} < 0 || $check->{state} > 3) {
-		$check->{state} = 3; # UNKNOWN
+	## read STDOUT
+	my $buf = "";
+	# only read 4096 bytes, since that is the upper limit on an NSCA packet
+	my $n = read($check->{pipe}, $buf, 4096);
+	close $check->{pipe};
+
+	if (!defined $n) {
+		ERROR("check $check->{name} encountered read error getting output: $!");
+		return -1;
 	}
 
-	$check->{current}++;
-	# OK != soft; propgation of previous state != soft
-	if ($check->{state} == 0 || $check->{state} == $check->{last_state}) {
-		$check->{is_soft_state} = 0;
-		$check->{current} = 1;
-
-	} elsif ($check->{current} >= $check->{attempts}) {
-		$check->{is_soft_state} = 0;
-		$check->{current} = 1;
-
-	} else {
-		$check->{is_soft_state} = 1;
+	if ($check->{sigkill} || $check->{sigterm}) {
+		$buf = "check timed out (exceeded NLMA timeout)";
+		$check->{exit_status} = 3; # UNKNOWN
 	}
+	$buf = clean_check_output($buf);
 
+	## read STDERR
 	$check->{stderr} = '';
 	if (exists($check->{stderr_out}) && open(my $fh, '<', $check->{stderr_out})) {
 		while (<$fh>) {
@@ -201,26 +198,6 @@ sub reap_check
 		ERROR("check $check->{name} failed to read in STDERR file");
 	}
 
-	DEBUG("check $check->{name} :: last_state:$check->{last_state}, state:$check->{state}, attempts:$check->{current}/$check->{attempts}, soft:$check->{is_soft_state}");
-	schedule_check($check);
-
-	$check->{pid} = -1;
-	my $buf = "";
-	# only read 4096 bytes, since that is the upper limit on an NSCA packet
-	my $n = read($check->{pipe}, $buf, 4096);
-	close $check->{pipe};
-
-	if (!defined $n) {
-		ERROR("check $check->{name} encountered read error getting output: $!");
-		return -1;
-	}
-
-	if ($check->{sigkill} || $check->{sigterm}) {
-		$check->{exit_status} = 3; # UNKNOWN
-		$buf = "check timed out";
-	}
-	$buf = clean_check_output($buf);
-
 	# if the plugin only wrote to STDERR (and not STDOUT), force
 	# an UNKNOWN state; something amy be wrong with the plugin...
 	if (!$buf and $buf = clean_check_output($check->{stderr})) {
@@ -230,6 +207,31 @@ sub reap_check
 
 	$check->{output} = $buf ? $buf : "(no check output)";
 	$check->{pipe} = undef;
+
+	# calculate hard / soft state (for retry logic)
+	$check->{last_state} = $check->{state} unless $check->{is_soft_state};
+	$check->{state} = $check->{exit_status};
+	if ($check->{state} < 0 || $check->{state} > 3) {
+		$check->{state} = 3; # UNKNOWN
+	}
+
+	$check->{current}++;
+	# OK != soft; propagation of previous state != soft
+	if ($check->{state} == 0 || $check->{state} == $check->{last_state}) {
+		$check->{is_soft_state} = 0;
+		$check->{current} = 1;
+
+	} elsif ($check->{current} >= $check->{attempts}) {
+		$check->{is_soft_state} = 0;
+		$check->{current} = 1;
+
+	} else {
+		$check->{is_soft_state} = 1;
+	}
+
+	DEBUG("check $check->{name} :: last_state:$check->{last_state}, state:$check->{state}, attempts:$check->{current}/$check->{attempts}, soft:$check->{is_soft_state}");
+	schedule_check($check);
+	$check->{pid} = -1;
 
 	DEBUG("check $check->{name} exited $check->{exit_status} with output '$check->{output}'");
 	return 0;

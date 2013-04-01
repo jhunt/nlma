@@ -7,6 +7,13 @@ sub TEST_ALL
 	$ENV{TEST_ALL};
 }
 
+sub mock_exit
+{
+	my ($rc) = @_;
+	qx(/bin/sh -c 'exit $rc');
+	return $?;
+}
+
 sub mock_check
 {
 	my $check = shift;
