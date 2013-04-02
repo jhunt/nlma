@@ -1,0 +1,76 @@
+---
+#
+# runway/nlma.yml - Nagios Local Monitoring Agent Configuration
+#
+
+###########################################################################
+# Global Configuration (agent options)
+
+parents:
+  default:
+    - nag01.monitoring.dev.opal.synacor.com:5667
+
+send_nsca: /usr/local/bin/send_nsca_compat
+plugin_root: /opt/synacor/monitor/plugins
+
+user:  nlma
+group: nlma
+
+checkin:
+  interval: 60
+  service: nlma_poller
+
+log:
+  facility: daemon
+  level:    warning
+
+
+---
+###########################################################################
+# Local Configuration (check definitions)
+
+###########################################################################
+# nlma/cpu.erb
+
+normal_cpu:
+  command: "check_cpu -n 10 -w 15: -c 5:"
+
+notfound:
+  command: "enoent"
+
+notfound2:
+  command: "enoent_with_args --with --args 2"
+
+notfound3:
+  command: /path/to/nowhere/bin/hi
+
+notreadable:
+  command: /etc/shadow
+
+notreadable2:
+  command: /etc/shadow --with-args --path "/test"
+
+dir_not_file:
+  command: "/etc"
+
+dir_not_file2:
+  command: "/etc --with-args"
+
+notexecable:
+  command: "/etc/issue"
+
+sudo_okargs:
+  sudo:    root
+  command: "check_icmp -n 3 -H tower.svcs.atl.synacor.com"
+
+sudo_okay:
+  sudo: root
+  command: "check_apacheconfigs"
+
+sudo_bad_user:
+  sudo: zimbra
+  command: "check_dummy 0 OK as zimbra user"
+
+sudo_403:
+  sudo: root
+  command: /bin/ls /etc
