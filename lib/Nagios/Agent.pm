@@ -226,6 +226,10 @@ sub reap_check
 
 		# Use STDERR if it is available.
 		if ($buf = clean_check_output($check->{stderr})) {
+			# minor fixups to make certain errors more... troubleshootable
+			(my $bin = $check->{command}) =~ m/^([^\s]*)/;
+			$buf =~ s|^sudo: sorry, a password is required to run sudo$|sudo: failed to run $bin without a password, check /etc/sudoers (and puppet)!|;
+
 			$buf = "ERROR: $buf";
 		}
 	}
