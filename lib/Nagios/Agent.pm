@@ -111,9 +111,30 @@ sub run_check
 			WARN("check $check->{name} has relative command, but no plugin_root specified!!");
 		}
 	}
+
+	# check for existence of plugin executable (but only for absolute paths)
+	if ($command =~ m|^(/[^\s]*)|) {
+		my $bin = $1;
+		INFO("Checking $bin for -e, -f, -r and -x");
+		my $error;
+		if    (!-e $bin) { $error = "not found (-e)"      }
+		elsif (!-f $bin) { $error = "not a file (-f)"     }
+		elsif (!-r $bin) { $error = "not readable (-r)"   }
+		elsif (!-x $bin) { $error = "not executable (-x)" }
+
+		if ($error) {
+			ERROR("executable for $check->{name} ($bin) $error");
+			$command = "/bin/echo 'UNKNOWN - plugin \"$bin\" $error'; exit 3";
+
+			# skip sudo, if specified (we don't need to sudo echo)
+			delete $check->{sudo};
+		}
+	}
+
 	if ($check->{sudo}) {
 		$command = "/usr/bin/sudo -n -u $check->{sudo} $command";
 	}
+
 	INFO("executing '$command' via /bin/sh -c");
 
 	(my $fh, $check->{stderr_out}) = tempfile();
