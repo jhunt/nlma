@@ -9,6 +9,7 @@ use Cwd qw(abs_path);
 use Sys::Hostname qw(hostname);
 use File::Temp qw(tempfile);
 
+use IO::Select;
 use Time::HiRes qw(gettimeofday usleep);
 use YAML;
 
@@ -137,6 +138,8 @@ sub run_check
 
 	INFO("executing '$command' via /bin/sh -c");
 
+	$check->{output} = '';
+
 	(my $fh, $check->{stderr_out}) = tempfile();
 	close $fh; # don't need the file handle, just the filename
 
@@ -187,22 +190,13 @@ sub reap_check
 
 	push @RUNTIMES, $check->{duration};
 
-	## read STDOUT
-	my $buf = "";
-	# only read 4096 bytes, since that is the upper limit on an NSCA packet
-	my $n = read($check->{pipe}, $buf, 4096);
-	close $check->{pipe};
-
-	if (!defined $n) {
-		ERROR("check $check->{name} encountered read error getting output: $!");
-		return -1;
-	}
+	read_all($check);
 
 	if ($check->{sigkill} || $check->{sigterm}) {
-		$buf = "check timed out (exceeded NLMA timeout)";
+		$check->{output} = "check timed out (exceeded NLMA timeout)";
 		$check->{exit_status} = 3; # UNKNOWN
 	}
-	$buf = clean_check_output($buf);
+	$check->{output} = clean_check_output($check->{output});
 
 	## read STDERR
 	$check->{stderr} = '';
@@ -221,21 +215,22 @@ sub reap_check
 
 	# if the plugin did not produce output to STDOUT, force
 	# an UNKNOWN state; something amy be wrong with the plugin...
-	if (!$buf) {
+	if (!$check->{output}) {
 		$check->{exit_status} = 3; # UNKNOWN
 
 		# Use STDERR if it is available.
-		if ($buf = clean_check_output($check->{stderr})) {
+		if ($check->{output} = clean_check_output($check->{stderr})) {
 			# minor fixups to make certain errors more... troubleshootable
 			(my $bin = $check->{command}) =~ m/^([^\s]*)/;
-			$buf =~ s|^sudo: sorry, a password is required to run sudo$|sudo: failed to run $bin without a password, check /etc/sudoers (and puppet)!|;
+			$check->{output} =~ s|^sudo: sorry, a password is required to run sudo$|sudo: failed to run $bin without a password, check /etc/sudoers (and puppet)!|;
 
-			$buf = "ERROR: $buf";
+			$check->{output} = "ERROR: $check->{output}";
 		}
 	}
 
-	$check->{output} = $buf ? $buf : "(no check output)";
-	$check->{pipe} = undef;
+	if (!$check->{output}) {
+		$check->{output} = "(no check output)";
+	}
 
 	# calculate hard / soft state (for retry logic)
 	$check->{last_state} = $check->{state} unless $check->{is_soft_state};
@@ -574,10 +569,65 @@ sub merge_check_defs
 	return 0;
 }
 
+sub read_once
+{
+	my ($check) = @_;
+	return 0 unless $check->{pipe};
+
+	my $tmp = '';
+	my $n = read($check->{pipe}, $tmp, 8192);
+
+	if (!defined $n) {
+		ERROR("check $check->{name} encountered read error getting output: $!");
+		return 0;
+	}
+
+	if ($n == 0) {
+		DEBUG("EOF for $check->{name} pid $check->{pid}; closing pipe");
+		close $check->{pipe};
+		$check->{pipe} = undef;
+		return 0;
+	}
+
+	if (length($check->{output}) >= 4096) {
+		DEBUG("Read $n bytes from $check->{name} pid $check->{pid} - discarding (already have ".length($check->{output})." bytes)");
+	} else {
+		DEBUG("Read $n bytes from $check->{name} pid $check->{pid}");
+		$check->{output} = substr($check->{output}.$tmp, 0, 4096);
+	}
+
+	return 1;
+}
+
+sub read_all
+{
+	my ($check) = @_;
+	while (read_once($check)) { }
+}
+
 sub waitall
 {
 	my ($config, $checks, $flags) = @_;
 	my %results = ();
+
+	# First, we try to read from any and all child pipes
+	# until we exhaust readable pipes
+	#
+	my %lookup = map { $_->{pipe} => $_ } @$checks;
+	my (@readable, @pipes);
+
+	do {
+		@pipes = grep { $_ } map { $_->{pipe} } @$checks;
+		DEBUG("Attempting to read from ".scalar @pipes." file descriptors");
+
+		@readable = IO::Select->new(@pipes)->can_read(0);
+		DEBUG("Found ".scalar @readable." readable dile descriptors");
+		read_once($lookup{$_}) for @readable;
+
+	} while @readable;
+
+	# Then, we see if any child wants to terminate,
+	# without blocking if $flags == POSIX::WNOHANG
 
 	while ( (my $child = waitpid(-1, $flags || 0)) > 0) {
 		my $status = $?;
@@ -702,6 +752,7 @@ sub runall
 		print "$check->{name}\n";
 		print "   `$check->{command}`\n";
 		run_check($check, $config->{plugin_root});
+		read_all($check);
 		waitpid($check->{pid}, 0);
 		reap_check($check, $?);
 		print "   OUTPUT: '$check->{output}'\n";
@@ -961,6 +1012,29 @@ The $flags arguments should either be undef, or POSIX::WNOHANG,
 depending on whether it should wait for all child processes (i.e.
 when terminating via SIGTERM) or just child processes that have
 already exited (i.e. normal operation).
+
+waitall will also perform select-based IO multiplexing on all live
+child process output pipes, clearing out pipes and storing up to the
+first 4k of output for each check.  This allows NLMA to handle plugins
+that generate vast amounts of output, without deadlock.
+
+See B<read_once>
+
+=item B<read_all($check)>
+
+Read from a child process output pipe, until the pipe is closed or an
+error is detected.
+
+This function is based off of B<read_once>, and is called from
+B<reap_check> and B<run_all> (for `nlma -tv`, which doesn't call the
+B<waitall> function and therefore needs to read child output to prevent
+deadlock).
+
+=item B<read_once($check)>
+
+Reads at most 8192 bytes from a child process output pipe.  If EOF or
+an error condition is encountered, returns 0 to indicate that there is
+no more to read.  Otherwise, returns 1.
 
 =item B<configure_syslog($logcfg)>
 

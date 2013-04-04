@@ -26,6 +26,30 @@ sub mock_check
 	$check->{attempts} = 1          unless exists $check->{attempts};
 	$check->{current} = 0           unless exists $check->{current};
 	$check->{pid} = 4242            unless exists $check->{pid};
+	$check->{output} = ''           unless exists $check->{output};
+	$check->{command} = 'check_it'  unless exists $check->{command};
 
 	$check;
+}
+
+# Create a fake, readable pipe.
+#
+# We used to use IO::String, but apparently IO::String handles don't
+# emulate real UNIX file descriptors enough for IO::Select or select(3)'s
+# tastes.
+#
+# BE CAREFUL not to put too much data into mock_pipe since it doesn't
+# actually handle the deadlock well. (testing for that must be done via
+# other mechanisms)
+#
+sub mock_pipe
+{
+	my ($s) = @_;
+
+	pipe my $read, my $write;
+
+	print $write $s;
+	close $write;
+
+	return $read;
 }

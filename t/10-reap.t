@@ -17,7 +17,7 @@ my $NOW = time;
 
 	my $check = mock_check({
 			name => "check_ok",
-			pipe => IO::String->new("all good"),
+			pipe => mock_pipe("all good"),
 	});
 
 	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
@@ -38,7 +38,7 @@ my $NOW = time;
 			is_soft_state => 1,
 			current       => 4321,
 			attempts      => 3,
-			pipe          => IO::String->new("still critical..."),
+			pipe          => mock_pipe("still critical..."),
 	});
 	is(Nagios::Agent::reap_check($check, mock_exit(2)), 0, "reap_check returns 0 on success");
 	is($check->{is_soft_state}, 0, 'After 4321/3 attempts, we are not at a soft state anymore');
@@ -49,7 +49,7 @@ my $NOW = time;
 { # Weird return values (>3)
 	my $check = mock_check({
 			name => 'bad_rc',
-			pipe => IO::String->new("returned 0x34")
+			pipe => mock_pipe("returned 0x34")
 	});
 
 	is(Nagios::Agent::reap_check($check, 0x3400), 0, "reap_check returns 0 on success");
@@ -60,7 +60,7 @@ my $NOW = time;
 	my $check = mock_check({
 			name => 'bad_rc',
 			sigkill => 1,
-			pipe => IO::String->new("non-local exit")
+			pipe => mock_pipe("non-local exit")
 	});
 
 	is(Nagios::Agent::reap_check($check, 0x3401), 0, "reap_check returns 0 on success");
@@ -76,7 +76,7 @@ my $NOW = time;
 	my $check = mock_check({
 			name       => 'bad_sudo',
 			stderr_out => $temp,
-			pipe       => IO::String->new(''), # no output
+			pipe       => mock_pipe(''), # no output
 	});
 
 	is(Nagios::Agent::reap_check($check, mock_exit(42)), 0, "reap_check returns 0 on success");
@@ -92,7 +92,7 @@ my $NOW = time;
 	my $check = mock_check({
 			name        => 'no_output',
 			stderr_out  => $temp,
-			pipe        => IO::String->new(''), # no output
+			pipe        => mock_pipe(''), # no output
 	});
 
 	is(Nagios::Agent::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
@@ -103,7 +103,7 @@ my $NOW = time;
 { # ITM-2166 - Force UNKNOWNs for missing STDOUT, regardless of STDERR output
 	my $check = mock_check({
 			name => 'really_no_output',
-			pipe => IO::String->new(''), # no output
+			pipe => mock_pipe(''), # no output
 	});
 
 	is(Nagios::Agent::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
@@ -114,19 +114,21 @@ my $NOW = time;
 { # No check output
 	my $check = mock_check({
 			name => 'no_output',
-			pipe => IO::String->new('')
+			pipe => mock_pipe('')
 	});
 	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
 	is($check->{output}, "(no check output)", "no output message");
 }
 
 { # failed to read from pipe
+  # (still returns 0, since we incrementally read for ITM-2204)
 	my $check = mock_check({
 			name => 'bad_read',
 			pipe => 'not-a-file-descriptor!'
 	});
 	diag "You should see a 'read() on unopened filehandle' warning below...";
-	is(Nagios::Agent::reap_check($check, 0x0000), -1, "reap_check returns -1 on fail");
+	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check now returns 0 on read fail");
+	is($check->{output}, "(no check output)", "no output message");
 }
 
 { # Sustained Warning
@@ -134,7 +136,7 @@ my $NOW = time;
 			name => 'warn_check',
 			last_state => 1,
 			state => 1,
-			pipe => IO::String->new('still warning')
+			pipe => mock_pipe('still warning')
 	});
 	is(Nagios::Agent::reap_check($check, 0x0100), 0, "reap_check returns 0 on success");
 	is($check->{is_soft_state}, 0, "WARNING -> WARNING is a hard state");
@@ -143,7 +145,7 @@ my $NOW = time;
 { # Multiline output
 	my $check = mock_check({
 			name => 'multiline',
-			pipe => IO::String->new(join("\n", qw(this is output on multiple lines))),
+			pipe => mock_pipe(join("\n", qw(this is output on multiple lines))),
 	});
 	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
 	is($check->{output}, "this / is / output / on / multiple / lines");

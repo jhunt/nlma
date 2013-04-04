@@ -24,6 +24,8 @@ log:
   facility: daemon
   level:    warning
 
+timeout: 8
+
 
 ---
 ###########################################################################
@@ -74,3 +76,44 @@ sudo_bad_user:
 sudo_403:
   sudo: root
   command: /bin/ls /etc
+
+#####################################################################
+#####################################################################
+##
+##  These checks use `plugin_large' to generate massive amounts
+##  of output to exercise NLMA's multi-process write facilities.
+##
+##  See comments in runway/plugin_large for more details.
+##
+##  Use of /bin/sh -c '...' is necessary to defeat NLMA's desire
+##  to prepend *plugin_root* to relative pathnames, without
+##  having to hard-code the CWD of dev opal machines.
+##
+
+# 6 chars, and a newline
+#
+check_6:
+  command: /bin/sh -c './runway/plugin_large 2 2 2'
+
+# 4096 chars and a newline.  output should end with a single 'I'
+#
+check_4k:
+  command: /bin/sh -c './runway/plugin_large 4095 1'
+
+# 64k chars and a newline.  output should end with a single 'I'
+# (this one hangs if NLMA is broken)
+#
+check_64k:
+  command: /bin/sh -c './runway/plugin_large 4095 61440 1'
+
+# 256k chars and a newline.  output should end with a single 'I'
+# (this one hangs if NLMA is broken)
+#
+check_256k:
+  command: /bin/sh -c './runway/plugin_large 4095 61440 196008 1'
+
+# 1024k chars and a newline.  output should end with a single 'I'
+# (this one hangs if NLMA is broken)
+#
+check_1024k:
+  command: /bin/sh -c './runway/plugin_large 4095 61440 196008 262144 262144 262144 1'
