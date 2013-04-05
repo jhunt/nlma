@@ -621,7 +621,7 @@ sub waitall
 		DEBUG("Attempting to read from ".scalar @pipes." file descriptors");
 
 		@readable = IO::Select->new(@pipes)->can_read(0);
-		DEBUG("Found ".scalar @readable." readable dile descriptors");
+		DEBUG("Found ".scalar @readable." readable file descriptors");
 		read_once($lookup{$_}) for @readable;
 
 	} while @readable;
