@@ -377,8 +377,8 @@ sub parse_config
 	$config->{dump} = abs_path($config->{dump});
 
 	if (!exists $config->{startup_splay}) {
-		$config->{startup_splay} = 15;
-		DEBUG("no config for startup_splay: using default of $config->{startup_splay} seconds");
+		$config->{startup_splay} = 0;
+		DEBUG("no config for startup_splay: using default (auto-calculate)");
 	}
 
 	$config->{log} = $config->{log} || {};
@@ -443,6 +443,8 @@ sub parse_config
 		delete $config->{include};
 	}
 
+	my $min_interval = 300;
+
 	my @list = ();
 	for my $cname (keys %$checks) {
 		DEBUG("parsed check definition for $cname");
@@ -485,11 +487,19 @@ sub parse_config
 		$check->{pid} = $check->{exit_status} = -1;
 		$check->{output} = "";
 
+		$min_interval = MIN($min_interval, $check->{interval});
+
 		push @list, $check;
+	}
+
+	if (@list and $config->{startup_splay} <= 0) {
+		$config->{startup_splay} = $min_interval / @list;
+		INFO("Auto-calculated startup splay as ".scalar(@list)." / $min_interval == $config->{startup_splay}");
 	}
 
 	# Stagger-schedule the first run, longest interval runs first
 	@list = sort { $b->{interval} <=> $a->{interval} } @list;
+
 	my $run_at = gettimeofday;
 	for my $check (@list) {
 		$check->{next_run} = $run_at;
@@ -613,7 +623,7 @@ sub waitall
 	# First, we try to read from any and all child pipes
 	# until we exhaust readable pipes
 	#
-	my %lookup = map { $_->{pipe} => $_ } @$checks;
+	my %lookup = map { $_->{pipe} => $_ } grep { $_->{pipe} } @$checks;
 	my (@readable, @pipes);
 
 	do {

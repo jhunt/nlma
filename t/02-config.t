@@ -16,7 +16,7 @@ use Sys::Hostname qw(hostname);
 	is($config->{send_nsca}, "/usr/bin/send_nsca -c /etc/icinga/send_nsca.cfg", "<send_nsca> default");
 	is($config->{timeout},   30, "<timeout> default");
 	is($config->{interval},  300, "<interval> default");
-	is($config->{startup_splay}, 15, "<startup_splay> default");
+	is($config->{startup_splay}, 0, "<startup_splay> default");
 	is($config->{dump},      "/var/tmp", "<dump> default");
 
 	is_deeply($config->{log}, {
