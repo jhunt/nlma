@@ -776,6 +776,33 @@ sub runall
 	}
 }
 
+sub submit_oob
+{
+	my ($class, $config_file, $alert) = @_;
+	$config_file = abs_path($config_file);
+	if (!-r $config_file) {
+		print STDERR "$config_file: $!\n";
+		exit 1;
+	}
+
+	my ($config, undef) = parse_config($config_file);
+	INFO "nlma v$VERSION starting up (running as $>:$))\n";
+
+	my $check = {
+		hostname    => $alert->{host},
+		name        => $alert->{service},
+		exit_status => $alert->{code},
+		output      => "CLI: $alert->{output} (submitted via $config->{hostname})",
+	};
+	$check->{hostname} = $config->{hostname} unless $check->{hostname};
+
+	my $env = 'default';
+	for my $parent (@{$config->{parents}{$env}}) {
+		INFO "NSCA: $env \@$parent\n";
+		send_nsca($parent, $config->{send_nsca}, $check);
+	}
+}
+
 sub start
 {
 	my ($class, $config_file, $foreground) = @_;
@@ -912,6 +939,33 @@ Ignore scheduling and run all configured checks, for testing.
   Nagios::Agent->runall("/etc/nlma.yml")
 
 After each check has been run, it will not be re-scheduled.
+
+=item B<submit_oob($class, $config_file, $alert)>
+
+Submits a single check result, out-of-band.  This is used primarily
+by the B<alert> utility for shell scripts and other code to integrate
+with monitoring.
+
+  Nagios::Agent->submit_oob("/etc/nlma.yml", {
+      host     => undef, # can be overridden
+      service  => 'mlb_ripper',
+      code     => 1
+      output   => 'check output',
+  });
+
+Normally, the B<host> option doesn't need to be specified; Nagios::Agent
+will fill in the auto-detected local hostname for you.  The option is
+there to allow override an on-behalf-of submission.
+
+B<NOTE>: no validation is done against the B<code> option.  Callers
+are responsible for passing valid plugin exit codes (0,1,2 or 3).
+
+The output that actually gets submitted up to the NSCA parents will
+be prefixed with 'CLI: ', and suffixed with ' (submitted via $localhost)',
+where I<$localhost> is the auto-detected local fqdn.
+
+This helps prevent abuse of OOB submission to clear actual problems
+by submitting forged results.
 
 =back
 

@@ -1,0 +1,461 @@
+#!/usr/bin/perl
+
+#
+# alert - NLMA Alert Submission Tool
+#
+# author:  James Hunt <jhunt@synacor.com>
+# created: 2012-03-17
+#
+
+use warnings;
+use strict;
+
+use Nagios::Agent;
+use Getopt::Long;
+use Log::Log4perl qw(:easy);
+
+my $DEFAULT_CONFIG_FILE_PATH = "/etc/nlma.yml";
+
+sub usage
+{
+	print "USAGE: $0 [-H host] -S service -s OK -m '...' [-vvv] [-c /path/to/config.yml]\n";
+	print "\n";
+	print "OPTIONS\n";
+	print "\n";
+	print "  --config, -c /path/to/config.yml\n";
+	print "      Specify a different configuration.\n";
+	print "      Default is $DEFAULT_CONFIG_FILE_PATH\n";
+	print "\n";
+	print "  --help, -h, -?\n";
+	print "      Show this help message.\n";
+	print "\n";
+	print "  --host, -H HOSTNAME\n";
+	print "      Optionally override the hostname to submit results\n";
+	print "      for.  By default, the local FQDN is used.\n";
+	print "\n";
+	print "  --service, -S NAME\n";
+	print "      The service to submit an alert result for.\n";
+	print "      This option is required.\n";
+	print "\n";
+	print "  --status, -s (OK|WARNING|CRITICAL|UNKNOWN)\n";
+	print "      Status of the service.\n";
+	print "      This option is required.\n";
+	print "\n";
+	print "  --message, -m 'service check output'\n";
+	print "      A short message describing the current state.\n";
+	print "      This option is required.\n";
+	print "\n";
+	print " --verbose, -v\n";
+	print "      Increase verbosity.  Can be used multiple\n";
+	print "      times for increase verbosity.\n";
+	print "\n";
+}
+
+my %opt = (
+	config => $DEFAULT_CONFIG_FILE_PATH,
+	verbose => 0,
+);
+
+Getopt::Long::Configure qw(bundling);
+GetOptions(\%opt,
+	"config|c=s",
+	"help|h|?",
+	"verbose|v+",
+
+	"host|H=s",
+	"service|S=s",
+	"message|m=s",
+	"status|s=s",
+);
+
+if ($opt{help}) {
+	usage;
+	exit(0);
+}
+
+Log::Log4perl->easy_init($INFO)  if $opt{verbose} > 1;
+Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 2;
+
+for (qw/service message status/) {
+	next if $opt{$_};
+	print STDERR "Missing --$_\n";
+	exit 1;
+}
+
+my %CODES = (
+	OK       => 0,
+	WARNING  => 1,
+	CRITICAL => 2,
+	UNKNOWN  => 3,
+);
+if (!exists $CODES{uc $opt{status}}) {
+	print STDERR "Unrecognized status: '$opt{status}'\n";
+	print STDERR "  must be one of: OK, WARNING, CRITICAL or UNKNOWN\n";
+	exit 1;
+}
+
+my $host = $opt{host} || 'localhost';
+print "Submitting $opt{status} alert for $host/$opt{service}: $opt{message}\n"
+	if $opt{verbose};
+
+Nagios::Agent->submit_oob($opt{config}, {
+	host    => $opt{host},
+	service => $opt{service},
+	code    => $CODES{uc $opt{status}},
+	output  => $opt{message},
+});
+
+=head1 NAME
+
+B<alert> - Submit alerts via NLMA, from shell scripts
+
+=head1 SYNOPSIS
+
+alert [-H host] -S service -s (OK|WARNING|CRITICAL|UNKNOWN) -m '...'
+
+=head1 DESCRIPTION
+
+The B<alert> tool provides external shell scripts and other non-integrated
+systems the ability to leverage NLMA and report service check results into
+the monitoring system.
+
+It is designed to be easy to use, with as little dependence on the locally
+running system as possible (i.e. no temp files, B<nlma> doesn't have to
+be running, etc.).
+
+=head1 EXAMPLES
+
+Here is a snippet of a shell script that submits job results for the
+daily backup job:
+
+    #!/bin/bash
+
+    rm -f /tmp/backup.fail
+    do_the_backups 2>/tmp/backup.fail
+
+    if [[ -f /tmp/backup.fail ]]; then
+
+        # Get the errors for the alert message
+        ERRORS=$(cat /tmp/backup.fail)
+
+        alert -S daily_backups -s CRITICAL -m "ERROS encountered: $ERRORS"
+
+    else
+        alert -S daily_backups -s OK -m "backups completed"
+    fi
+
+Bash not your cup of tea?  Are you a Perl guy (or gal)?
+This one's for you (although only a sysadmin could love this approach):
+
+    #!/usr/bin/perl
+
+    use My::Stuff;
+
+    my $thing = new My::Stuff;
+    $thing->do_stuff;
+
+    my ($status, $message) = ("OK", "stuff was done");
+
+    if ($thing->failed) {
+        $status  = "WARNING";
+        $message = "failure detected: ".$thing->error;
+    }
+
+    qx(/usr/bin/alert -S 'my_stuff' -s $status -m "$message");
+
+=head1 OPTIONS
+
+=over
+
+=item B<--service>, B<-S> I<service-name>
+
+Name of the service to submit results for.
+
+This option is required.
+
+=item B<--status>, B<-s> I<(OK|WARNING|CRITICAL|UNKNOWN)>
+
+The status or severity of the alert to report.  See B<PROBLEM STATES>
+for more details.
+
+This option is required.
+
+=item B<--message>, B<-m> I<C<problem description>>
+
+A short message describing the problem.  This should be brief, concise
+and provide enough useful information to allow NOC and Systems to triage
+and escalate.
+
+This option is required.
+
+=item B<--host>, B<-H> I<hostname>
+
+Name of the host (in the monitoring system) to submit check results for.
+
+Normally, this is automatically detected to be the fully-qualified domain
+name of the local host.  You shouldn't specify an override unless you know
+that you want to target another host inside of the monitoring system.
+
+=item B<--config>, B<-c> I</path/to/config.yml>
+
+By default, B<alert> uses /etc/nlma.yml for configuration, just like
+its big brother, B<nlma>; this option lets you specify a different path.
+
+=item B<--verbose>, B<-v>
+
+Increase output verbosity.  Can be used multiple times, for a cumulative
+effect.  B<alert> only honors up to three B<-v> flags; B<-vvv> is equivalent
+to full debug mode.
+
+=item B<--help>, B<-h>, B<-?>
+
+Display a short (but informative!) help screen.
+
+=back
+
+=head1 EXIT CODE
+
+On success (meaning that the arguments were correct), B<alert> exits 0.
+
+If required arguments are missing, B<alert> exits 1.
+
+All other exit codes are reserved for use identifying other error conditions.
+
+=head1 PROBLEM STATES
+
+Service checks can be in one of four possible states: B<OK>, B<WARNING>,
+B<CRITICAL> or B<UNKNOWN>.
+
+Which state you choose depends largely on the criticality of the job,
+importance of escalation and potential workarounds.  The Monitoring Team
+is happy to assist in choosing the correct state, just ask.
+
+=head2 OK
+
+Everything is running normally with the script.  All of its work was done
+correctly, and no errors were encountered.
+
+=head2 WARNING
+
+Minor problems were encountered, but the script was still able to do what
+it was supposed to.  WARNINGs are best reserved for things that can be
+worked around, but should still be investigated by a human being.
+
+=head2 CRITICAL
+
+The script had some serious issues that need to be escalated to someone
+quickly.  Issues and errors that deserve a CRITICAL alert include (but
+are not limited to):
+
+=over
+
+=over
+
+=item Network connection failures
+
+=item Access denial (database, filesystem, command execution, etc.)
+
+=item Missing data files
+
+=item Bad configuration options (script-specific)
+
+=back
+
+=back
+
+=head2 UNKNOWN
+
+This state is a lot like CRITICAL (it escalates the same way), but it
+indicates that the current state of the service cannot be determined.
+
+If you think you need to use UNKNOWN, please let the Monitoring Team
+know, so they can weigh in on the decision.  (The NOC normally escalates
+UNKNOWN issues directly to Monitoring).
+
+=head1 CAVEATS
+
+The B<alert> facility of NLMA is designed to be simple, not intelligent.
+Here are a few gotcha's to be on the lookout for:
+
+=head2 THE MONITORING SYSTEM MUST KNOW ABOUT YOUR SERVICE
+
+The submission of check results via B<alert> is really only half of the
+story.  If you submit a check result, and that service (or host) is not
+configured in the monitoring system, your result will be ignored, and
+you will get no feedback.
+
+If you are going to start submitting check results from an automated
+script, be sure to involve the Monitoring Team so that they can configure
+the monitoring system to process and act on the results you are submitting.
+
+=head2 RESULTS ONLY SUBMIT ONCE
+
+For almost all of our scheduled NLMA checks (those that are run regularly
+by the B<nlma> supervisor daemon), the core monitoring system is configured
+with a I<freshness threshold> that lets us detect cases where we are no
+longer submitting I<fresh> service check results to the monitoring core.
+
+(This can happen when NLMA is shut down, or a reconfiguration occurs via
+Puppet or some other external change in system state).
+
+When you ask the Monitoring Team to set up a new service for you, they
+will most likely insist on having some sort of freshness threshold, for
+the following reasons:
+
+=over
+
+=over
+
+=item 1. It protects against script failure
+
+What happens if a bug in your script causes it to bomb out before it
+ever gets to the 'contact the monitoring system' part?  Without freshness
+checking, the monitoring system will never complain that your script hasn't
+reported in, and the problem may go undiscovered for months.
+
+=item 2. It protects against configuration changes
+
+In a similar vein (most likely outside of your control entirely), what
+happens if your script gets disabled, or commented out in the crontab?
+
+As before, if the monitoring system doesn't know how often it should expect
+new check results, it can't in good consicence complain about not getting
+them.
+
+=back
+
+=back
+
+So, freshness checking is good, and we want to do it.  What does that
+mean to you as the script writer?
+
+=over
+
+=over
+
+B<Every run of the script should submit check results>.
+
+=back
+
+=back
+
+That means that if everything goes well, you should submit an OK:
+
+    alert -S foo -s OK -m 'looks good'
+
+That way, the monitoring system B<always> sees results from your script,
+and can be configured to complain if it doesn't see them regularly.
+
+=head2 RESULTS ARE NOT CUMULATIVE
+
+Every time you invoke B<alert>, the previous check results are replaced
+with the new ones.  This allows checks to recover, via an OK
+check result, or escalate by submitting a higher-severity alert.
+
+The flipside of this is that you probably don't want to submit alerts more
+than once in the same script.  Consider the following shell script:
+
+    #!/bin/bash
+
+    if [[ !-d /tmp/foo ]]; then
+        alert -S foo -s WARNING -m "/tmp/foo seems to have gone AWOL"
+        mkdir /tmp/foo
+    fi
+
+    rm -f /tmp/foo/err.out
+    find /tmp/foo | xargs /opt/foo/bin/bar -x # write to err.out
+
+    if [[ -f /tmp/foo/err.out ]]; then
+        ERRORS=$(cat /tmp/foo/err.out)
+        alert -S foo -s CRITICAL -m "BAR process failed: $ERRORS"
+
+    else
+        alert -S foo -s OK -m "BAR ran"
+    fi
+
+The biggest problem here is that the WARNING detected in the first
+part of the script is indiscriminately ignored by the CRITICAL and
+OK alert submissions at the end of the script.  Suppose /tmp/foo
+does not exist, and we have no issues running the bar process:
+
+=over
+
+=over
+
+=item 1. -d /tmp/foo fails, so issue a WARNING for the 'foo' service
+
+=item 2. bar process runs, without error
+
+=item 3. /tmp/foo/err.out does not exist, so issue an OK for 'foo'
+
+=back
+
+=back
+
+You may be tempted to put your OK result first, like this:
+
+    #!/bin/bash
+
+    alert -s foo -s OK -m "BAR ran"
+    if [[ !-d /tmp/foo ]]; then
+        alert -S foo -s WARNING -m "/tmp/foo seems to have gone AWOL"
+        mkdir /tmp/foo
+    fi
+
+    rm -f /tmp/foo/err.out
+    find /tmp/foo | xargs /opt/foo/bin/bar -x # write to err.out
+
+    if [[ -f /tmp/foo/err.out ]]; then
+        ERRORS=$(cat /tmp/foo/err.out)
+        alert -S foo -s CRITICAL -m "BAR process failed: $ERRORS"
+    fi
+
+While this does solve the end-state issue of the previous script, it
+introduces a far more insidious bug: service state flapping.
+
+When the script runs, it unconditionally submits an OK recovery alert.
+The monitoring system will immediately process this, send out recovery
+emails and mark the service as OK.
+
+Seconds later (depending on how long the bar process takes), the script
+submits a non-OK alert.  The monitoring system will dutifully react,
+marking the service as failed and sending out notification emails
+about a new problem.
+
+This behavior is called flapping, since the service switches rapidly
+between two different states.  Flapping services generate far more email
+than consistently failing services, and are impossible to suppress via
+a service Acknowledgement in Synformer.
+
+The upshot of all of this is that running alert while your script is
+still executing is generally not a good idea.
+
+Here is the best way to write the example shell script we've been using:
+
+    #!/bin/bash
+
+    STATUS="OK"
+    MESSAGE="BAR ran"
+
+    if [[ !-d /tmp/foo ]]; then
+        STATUS="WARNING"
+        MESSAGE="/tmp/foo seems to have gone AWOL"
+        mkdir /tmp/foo
+    fi
+
+    rm -f /tmp/foo/err.out
+    find /tmp/foo | xargs /opt/foo/bin/bar -x # write to err.out
+
+    if [[ -f /tmp/foo/err.out ]]; then
+        STATUS="CRITICAL"
+        MESSAGE="Bar process failed: $(cat /tmp/foo/err.out)"
+    fi
+
+    # don't forget Monitoring!
+    alert -S foo -s $STATUS -m "$MESSAGE"
+
+=head1 AUTHOR
+
+Written by James Hunt <jhunt@synacor.com>.
+
+=cut
