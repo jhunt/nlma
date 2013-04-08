@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #
-# nlma - Nagios Polling Daemon
+# nlma - NLMA Local Monitoring Agent
 #
 # author:  James Hunt <jhunt@synacor.com>
 # created: 2012-03-17
@@ -70,8 +70,11 @@ if ($opt{help}) {
 }
 
 if ($opt{runall}) {
-	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 0;
+	Log::Log4perl->easy_init($INFO)  if $opt{verbose} > 0;
+	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 1;
+
 	Nagios::Agent->runall($opt{config}, $opt{noop});
+
 } else {
 	if ($opt{foreground}) {
 		my $level = $ERROR;
@@ -95,11 +98,9 @@ if ($opt{runall}) {
 	Nagios::Agent->start($opt{config}, $opt{foreground});
 }
 
-=pod
-
 =head1 NAME
 
-B<nlma> - The Nagios Polling Daemon
+B<nlma> - The NLMA Local Monitoring Agent
 
 =head1 SYNOPSIS
 
@@ -107,9 +108,9 @@ nlma [-hFvtn] [-c /path/to/config.yml]
 
 =head1 DESCRIPTION
 
-The Nagios Agent is a host-side monitoring agent that schedules and runs
+NLMA is a host-side monitoring agent that schedules and runs
 check plugins on the local host, translates their output and exit codes,
-and then reports this information up to one or more Nagios/Icinga parent
+and then reports this information up to one or more Nagios parent
 servers via NSCA.
 
 It features a high-resolution clock for both scheduling and tracking plugin
@@ -270,7 +271,7 @@ default behavior.
 
 =item B<checkin>
 
-Controls how and when nlma will submit its own check result to Nagios,
+Controls how and when nlma will submit its own check result up,
 indicating what it is doing and how well it is doing it.  Supports two
 subkeys, B<service> and B<interval>:
 
@@ -370,7 +371,7 @@ The default timeout is 30 seconds.
 =item B<attempts>
 
 The number of time to run the local check before considering the output
-'official.'  This is intenionally very similar to Nagios/Icinga's
+'official.'  This is intenionally very similar to Nagios's
 max_check_attempts directive.
 
 Defaults to 1 (no retry/confirmation).
@@ -378,7 +379,7 @@ Defaults to 1 (no retry/confirmation).
 =item B<retry>
 
 A (usually) shorter time frame than B<interval>, used when multiple check
-attempts have been configured.  Intentionally very similar to Nagios/Icinga's
+attempts have been configured.  Intentionally very similar to Nagios's
 retry_interval.  If B<attempts> is set to 1, B<retry> is effectively
 ignored.
 
