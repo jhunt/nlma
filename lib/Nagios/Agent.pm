@@ -23,7 +23,8 @@ sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
 
 $| = 1;
 
-use constant TICK => 1000;
+# 50,000 microseconds = 0.05 seconds
+use constant TICK => 50*1000;
 
 # for check-in result
 my @RUNTIMES = ();
@@ -613,7 +614,7 @@ sub waitall
 	# First, we try to read from any and all child pipes
 	# until we exhaust readable pipes
 	#
-	my %lookup = map { $_->{pipe} => $_ } @$checks;
+	my %lookup = map { $_->{pipe} => $_ } grep { $_->{pipe} } @$checks;
 	my (@readable, @pipes);
 
 	do {
