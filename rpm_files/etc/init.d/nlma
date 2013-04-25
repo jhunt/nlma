@@ -61,7 +61,7 @@ reload()
 dump()
 {
 	echo -n $"Dumping $NPOLL  "
-	killproc $BINDIR/$NPOOL -10
+	killproc $BINDIR/$NPOLL -10
 	RETVAL=$?
 	echo
 	return $RETVAL
