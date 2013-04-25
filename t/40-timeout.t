@@ -12,11 +12,11 @@ require "t/common.pl";
 my $CMD = "bin/nlma-timeout";
 BAIL_OUT("Unable to find $CMD. Are you running from repo_root?") unless -f $CMD;
 
-local $SIG{ALARM} = sub {
+local $SIG{ALRM} = sub {
 		BAIL_OUT("Sigalarm received during $0 testing."
 			. " Something didn't time out properly inside it.");
 	};
-alarm 60;
+alarm 15;
 
 { # run timeout with a good check
 	my $check = "check_ok";

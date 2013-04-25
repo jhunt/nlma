@@ -27,14 +27,13 @@ unless (@cmd_args) {
 	usage();
 }
 
-local $SIG{ALRM} = sub {
-	$ALARMED = 1;
-};
-
-alarm $opts->{timeout};
-
 $pid = fork;
 if ($pid) {
+	local $SIG{ALRM} = sub {
+		$ALARMED = 1;
+	};
+	alarm $opts->{timeout};
+
 	DEBUG("Forked child on $pid. Parent is $$");
 	while (! waitpid($pid, POSIX::WNOHANG)) {
 		if ($TERMED) {
