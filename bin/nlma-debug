@@ -4,18 +4,18 @@ use strict;
 use warnings;
 use Getopt::Long qw(GetOptions);
 use Data::Dumper;
-use YAML::XS;
+use YAML::Syck;
 use DateTime;
 use Pod::Usage;
 use Nagios::Agent::Table;
 
-my ($schedule, $full, $match, $help, $dump, $live);
-GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump);
-# GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump, "live|l" => \$live);
+my ($schedule, $full, $match, $help, $dump, $live, $last);
+GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump, "last|l" => \$last);
+# GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump, "last|l", "live|L" => \$live);
 
 usage() if $help;
 my $raw;
-if (!$ARGV[0]) {
+if ($last) {
 	# `sudo /etc/init.d/nlma dump` if $live;
 	$raw = get_latest($dump);
 } else {
@@ -26,20 +26,24 @@ if (!$ARGV[0]) {
 
 my ($yaml_conf, $yaml_check) = Load($raw);
 $schedule = 1 unless $full;
+$yaml_conf->{lastdump} = $yaml_conf->{lastdump} ? hr_ts($yaml_conf->{lastdump}) : "<unknown>";
+$yaml_conf->{startup}  = $yaml_conf->{startup}  ? hr_ts($yaml_conf->{startup})  : "<unknown>";
+print "Dump taken at:   $yaml_conf->{lastdump}\n";
+print "NLMA started at: $yaml_conf->{startup}\n";
 if ($schedule) {
-	my $table = Nagios::Status::Table->new(['Name','Last Run','Duration (ms)','Status', 'Next Run', 'PID']);
+	my $table = Nagios::Agent::Table->new(['Name','Last Run','Duration (ms)','Status', 'Next Run', 'PID']);
 	foreach my $check (@{$yaml_check}) {
 		if ($match) {
 			next unless $check->{name} =~ m/$match/;
 		}
-		my $duration = "N/A";
+		my $duration = "-";
 		if ($check->{duration}) {
 			$duration = $check->{duration};
 			$duration *= 1000;
 			$duration =~ s/\..*$//;
 		}
 
-		my $last = "N/A";
+		my $last = "-";
 		if ($check->{started_at}) {
 			$last = hr_ts($check->{started_at});
 		}
@@ -53,6 +57,8 @@ if ($schedule) {
 				$exit = "2 (crit)";
 			} elsif ($exit == 3) {
 				$exit = "3 (unknown)";
+			} elsif ($exit == -1) {
+				$exit = "-"
 			}
 		}
 		if ($check->{sigkill}){
@@ -95,14 +101,14 @@ if ($full) {
 			next unless $check->{name} =~ m/$match/;
 		}
 		print "Name: ".$check->{name}."\n";
-		my $duration = "N/A";
+		my $duration = "-";
 		if ($check->{duration}) {
 			$duration = $check->{duration};
 			$duration *= 1000;
 			$duration =~ s/\..*$//;
 		}
 
-		my $last = "N/A";
+		my $last = "-";
 		if ($check->{started_at}) {
 			$last = hr_ts($check->{started_at});
 		}
@@ -125,7 +131,7 @@ sub hr_ts
 	$millieseconds =~ s/^.*\.//;
 	$millieseconds =~ s/^(\d\d\d).*/$1/;
 	my $dt = DateTime->from_epoch( epoch => $time, time_zone => 'local');
-	return $dt->ymd." ".$dt->hms." ".$millieseconds." (ms)";
+	return $dt->ymd." ".$dt->hms.".".$millieseconds;
 }
 
 sub get_latest
@@ -147,9 +153,6 @@ sub get_latest
 		$raw .= $_;
 	}
 	close $fh;
-	print "\nParsing: /var/tmp/$newest_name\n" unless $dump;
-	$newest_name =~ s/^.*nlma\.(\d+\.\d+)\.yml$/$1/;
-	print "Timestamp: ".hr_ts($newest_name)."\n" unless $dump;
 	return $raw;
 }
 
@@ -169,9 +172,9 @@ Parse nlma dump files normally found in /var/tmp.
 =head1 DESCRIPTION
 
 Parse the yaml dump files found in var tmp, supporting
-human readable times, and compacting output. Unless a
-file is given the default parse file will be the last created
-nlma file in the directory.
+human readable times, and compacting output. If no file is specified
+via the command line (or no --last flag is specified), this will read
+from STDIN.
 
 =head1 OPTIONS
 
@@ -193,9 +196,9 @@ Only print the matched names of checks.
 
 Pipe delimit the parsed output
 
-=item B<-l>, B<--live>
+=item B<-l>, B<--last>
 
-Actively dump the latest nlma data and parse the output
+Use the latest available file in /var/tmp/nlma.* as your dump.
 
 =back
 
