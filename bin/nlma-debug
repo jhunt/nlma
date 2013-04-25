@@ -14,10 +14,8 @@ GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$matc
 # GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump, "live|l" => \$live);
 
 usage() if $help;
-my $blork;
-$blork = 1 unless $ARGV[0];
 my $raw;
-if ($blork) {
+if (!$ARGV[0]) {
 	# `sudo /etc/init.d/nlma dump` if $live;
 	$raw = get_latest($dump);
 } else {
@@ -47,7 +45,6 @@ if ($schedule) {
 		}
 
 		my $exit = "0 (ok)";
-		
 		if ($check->{exit_status}) {
 			$exit = $check->{exit_status};
 			if ($exit == 1) {
@@ -140,7 +137,7 @@ sub get_latest
 		my $path = File::Spec->catfile( "/var/tmp/", $file );
 		next if -d $path;
 		next unless $path =~ m/nlma\.\d+/;
-		($newest_name, $newest_time ) = ( $file, -M _ ) 
+		($newest_name, $newest_time ) = ( $file, -M _ )
 			if( ! defined $newest_time or -M $path < $newest_time );
 		}
 	closedir $dh;

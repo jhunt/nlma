@@ -1,4 +1,4 @@
-package Nagios::Status::Table;
+package Nagios::Agent::Table;
 
 use strict;
 use warnings;
