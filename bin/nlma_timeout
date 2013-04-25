@@ -77,4 +77,64 @@ sub usage
 	exit 3;
 }
 
+=head1 NAME
 
+B<nlma_timeout> - NLMA Helper Script for enforcing timeouts when running checks via sudo
+
+=head1 SYNOPSIS
+
+nlma_timeout [-D] -t <timeout> -n <servicename> -- <check_command>
+
+=head1 DESCRIPTION
+
+NLMA will execute checks under normal circumstances with a timeout. If it does not see the process complete
+before then, it will SIGTERM, and subsequently SIGKILL the process to ensure the check is reaped and
+re-scheduled. When running checks via sudo, nlma no longer has the permission to signal the process directly.
+Thus, the timeout script was written to wrap commands intended to run via sudo, so that they will be signaled
+and killed properly if the check command takes too long.
+
+In order to work properly, B<--> must  be specified before the check command for proper option/argument
+processing.
+
+=head1 OPTIONS
+
+=over
+
+=item -t|--timeout <seconds>
+
+Specify the number of seconds the check can run before timing it out. (Should be larger than the check-plugin
+timeout).
+
+=item -n|--name <service>
+
+Specify the service name to use for identifying who this check is running for. B<nlma_timeout> will print
+to STDERR when it has to signal processes, so that we can further audit what's timing out. To be more clear
+in these messages, B<nlma_timeout> will use this option to print out the service name that the current check
+is running for.
+
+=item -D|--debug
+
+Enable debug output for B<nlma_timeout>
+
+=item -- <check_command>
+
+-- separates the arguments for B<nlma_timeout> from the check command to run,  and its arguments. This is
+absolutely required for proper operation.
+
+=back
+
+=head1 EXAMPLES
+
+Run check_woot for the nlma_woot service with a 45 second timeout:
+
+  /usr/bin/nlma_timeout -t 45 -n nlma_woot -- check_woot
+
+=head1 AUTHOR
+
+nlma_timeout was written by Geoff Franks <gfranks@synacor.com>
+
+=head1 BUGS
+
+Like I would allow buggy software to get out? Please.
+
+=cut
