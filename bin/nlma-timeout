@@ -79,11 +79,11 @@ sub usage
 
 =head1 NAME
 
-B<nlma_timeout> - NLMA Helper Script for enforcing timeouts when running checks via sudo
+B<nlma-timeout> - NLMA Helper Script for enforcing timeouts when running checks via sudo
 
 =head1 SYNOPSIS
 
-nlma_timeout [-D] -t <timeout> -n <servicename> -- <check_command>
+nlma-timeout [-D] -t <timeout> -n <servicename> -- <check_command>
 
 =head1 DESCRIPTION
 
@@ -107,18 +107,18 @@ timeout).
 
 =item -n|--name <service>
 
-Specify the service name to use for identifying who this check is running for. B<nlma_timeout> will print
+Specify the service name to use for identifying who this check is running for. B<nlma-timeout> will print
 to STDERR when it has to signal processes, so that we can further audit what's timing out. To be more clear
-in these messages, B<nlma_timeout> will use this option to print out the service name that the current check
+in these messages, B<nlma-timeout> will use this option to print out the service name that the current check
 is running for.
 
 =item -D|--debug
 
-Enable debug output for B<nlma_timeout>
+Enable debug output for B<nlma-timeout>
 
 =item -- <check_command>
 
--- separates the arguments for B<nlma_timeout> from the check command to run,  and its arguments. This is
+-- separates the arguments for B<nlma-timeout> from the check command to run,  and its arguments. This is
 absolutely required for proper operation.
 
 =back
@@ -127,11 +127,11 @@ absolutely required for proper operation.
 
 Run check_woot for the nlma_woot service with a 45 second timeout:
 
-  /usr/bin/nlma_timeout -t 45 -n nlma_woot -- check_woot
+  /usr/bin/nlma-timeout -t 45 -n nlma_woot -- check_woot
 
 =head1 AUTHOR
 
-nlma_timeout was written by Geoff Franks <gfranks@synacor.com>
+nlma-timeout was written by Geoff Franks <gfranks@synacor.com>
 
 =head1 BUGS
 
