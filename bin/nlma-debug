@@ -27,7 +27,7 @@ if ($blork) {
 }
 
 my ($yaml_conf, $yaml_check) = Load($raw);
-
+$schedule = 1 unless $full;
 if ($schedule) {
 	my $table = Nagios::Status::Table->new(['Name','Last Run','Duration (ms)','Status', 'Next Run', 'PID']);
 	foreach my $check (@{$yaml_check}) {
