@@ -120,3 +120,31 @@ sub dump
 }
 
 1;
+
+=head1 NAME
+
+Nagios::Agent::Table
+
+=head1 FUNCTIONS
+
+=over
+
+=item dump
+
+=item dump_row
+
+=item print
+
+=item print_row
+
+=item empty
+
+=item _pad
+
+=item sort
+
+=item append
+
+=item new
+
+=cut
