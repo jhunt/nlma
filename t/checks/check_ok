@@ -1,0 +1,3 @@
+#!/bin/bash
+echo "CHECK OK - Everything is good"
+exit 0

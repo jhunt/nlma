@@ -53,3 +53,5 @@ sub mock_pipe
 
 	return $read;
 }
+
+1;
