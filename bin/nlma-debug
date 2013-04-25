@@ -1,0 +1,209 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+use Data::Dumper;
+use YAML::Syck;
+use DateTime;
+use Pod::Usage;
+use Nagios::Agent::Table;
+
+my ($schedule, $full, $match, $help, $dump, $live, $last);
+GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump, "last|l" => \$last);
+# GetOptions('schedule|s' => \$schedule, 'full|f' => \$full, 'match|m=s' => \$match, 'help|h|?' => \$help, "dump|D" => \$dump, "last|l", "live|L" => \$live);
+
+usage() if $help;
+my $raw;
+if ($last) {
+	# `sudo /etc/init.d/nlma dump` if $live;
+	$raw = get_latest($dump);
+} else {
+	while (<>) {
+		$raw .= $_;
+	}
+}
+
+my ($yaml_conf, $yaml_check) = Load($raw);
+$schedule = 1 unless $full;
+$yaml_conf->{lastdump} = $yaml_conf->{lastdump} ? hr_ts($yaml_conf->{lastdump}) : "<unknown>";
+$yaml_conf->{startup}  = $yaml_conf->{startup}  ? hr_ts($yaml_conf->{startup})  : "<unknown>";
+print "Dump taken at:   $yaml_conf->{lastdump}\n";
+print "NLMA started at: $yaml_conf->{startup}\n";
+if ($schedule) {
+	my $table = Nagios::Agent::Table->new(['Name','Last Run','Duration (ms)','Status', 'Next Run', 'PID']);
+	foreach my $check (@{$yaml_check}) {
+		if ($match) {
+			next unless $check->{name} =~ m/$match/;
+		}
+		my $duration = "-";
+		if ($check->{duration}) {
+			$duration = $check->{duration};
+			$duration *= 1000;
+			$duration =~ s/\..*$//;
+		}
+
+		my $last = "-";
+		if ($check->{started_at}) {
+			$last = hr_ts($check->{started_at});
+		}
+
+		my $exit = "0 (ok)";
+		if ($check->{exit_status}) {
+			$exit = $check->{exit_status};
+			if ($exit == 1) {
+				$exit = "1 (warn)";
+			} elsif ($exit == 2) {
+				$exit = "2 (crit)";
+			} elsif ($exit == 3) {
+				$exit = "3 (unknown)";
+			} elsif ($exit == -1) {
+				$exit = "-"
+			}
+		}
+		if ($check->{sigkill}){
+					$exit = "SIGKILL";
+		} elsif ($check->{sigterm}) {
+					$exit = "SIGTERM";
+		}
+
+		my $pid = $check->{pid};
+		$pid = "-" if $pid eq "-1";
+		my $row = {
+			Name => $check->{name},
+			PID => $pid,
+			'Next Run' => hr_ts($check->{next_run}),
+			'Last Run' => $last,
+			'Duration (ms)' => $duration,
+			Status => $exit
+			};
+		$table->append($row);
+	}
+	if ($dump) {
+		$table->dump;
+	} else {
+		print "\n";
+		$table->print;
+		print "\n";
+	}
+}
+
+
+if ($full) {
+	print "\n\n";
+	foreach (@{$yaml_conf->{parents}{default}}) {
+		print "Default parent:  $_\n";
+	}
+	print Dumper $yaml_conf;
+	print "\n\n";
+	foreach my $check (@$yaml_check) {
+		if ($match) {
+			next unless $check->{name} =~ m/$match/;
+		}
+		print "Name: ".$check->{name}."\n";
+		my $duration = "-";
+		if ($check->{duration}) {
+			$duration = $check->{duration};
+			$duration *= 1000;
+			$duration =~ s/\..*$//;
+		}
+
+		my $last = "-";
+		if ($check->{started_at}) {
+			$last = hr_ts($check->{started_at});
+		}
+		print "\tLast run: $last\n";
+		print "\tDuration: $duration (ms)\n";
+		print "\tNext Run: ".hr_ts($check->{next_run})."\n";
+
+		foreach (sort keys %$check) {
+			next if $_ =~ m/next_run|duration|started_at|name|pipe/;
+			print "\t$_: ".$check->{$_}."\n";
+		}
+	}
+}
+
+sub hr_ts
+{
+	my $time = $_[0];
+	my $millieseconds = $time;
+	$time =~ s/\.\d+$//;
+	$millieseconds =~ s/^.*\.//;
+	$millieseconds =~ s/^(\d\d\d).*/$1/;
+	my $dt = DateTime->from_epoch( epoch => $time, time_zone => 'local');
+	return $dt->ymd." ".$dt->hms.".".$millieseconds;
+}
+
+sub get_latest
+{
+	my $dump = $_[0];
+	opendir my $dh, '/var/tmp' or die "Cannot open /var/tmp: $!";
+	my( $newest_name, $newest_time );
+	while( defined( my $file = readdir( $dh ) ) ) {
+		my $path = File::Spec->catfile( "/var/tmp/", $file );
+		next if -d $path;
+		next unless $path =~ m/nlma\.\d+/;
+		($newest_name, $newest_time ) = ( $file, -M _ )
+			if( ! defined $newest_time or -M $path < $newest_time );
+		}
+	closedir $dh;
+	open my $fh, '<', "/var/tmp/$newest_name" or die "Unable to open latest dump $!";
+	my $raw;
+	while (<$fh>) {
+		$raw .= $_;
+	}
+	close $fh;
+	return $raw;
+}
+
+sub usage
+{
+	pod2usage(1);
+}
+
+=head1 NAME
+
+nlma-debug [<file>] [-f] [-s] [-m regex]
+
+=head1 SYNOPSIS
+
+Parse nlma dump files normally found in /var/tmp.
+
+=head1 DESCRIPTION
+
+Parse the yaml dump files found in var tmp, supporting
+human readable times, and compacting output. If no file is specified
+via the command line (or no --last flag is specified), this will read
+from STDIN.
+
+=head1 OPTIONS
+
+=over
+
+=item B<-f>, B<--full>
+
+Print the full parsed output of the dump file.
+
+=item B<-s>, B<--schedule>
+
+Print a compacted list of runtimes and start times of checks.
+
+=item B<-m>, B<--match> REGEX
+
+Only print the matched names of checks.
+
+=item B<-D>, B<--dump>
+
+Pipe delimit the parsed output
+
+=item B<-l>, B<--last>
+
+Use the latest available file in /var/tmp/nlma.* as your dump.
+
+=back
+
+=head1 AUTHOR
+
+Written by Dan Molik <dmolik@synacor.com>
+
+=cut

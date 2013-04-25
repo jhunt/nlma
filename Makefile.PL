@@ -11,7 +11,7 @@ WriteMakefile(
       ? ('LICENSE'=> 'perl')
       : ()),
     PL_FILES            => {},
-    EXE_FILES           => [ 'bin/nlma' ],
+    EXE_FILES           => [ 'bin/nlma', 'bin/nlma-debug' ],
     PREREQ_PM => {
         'Test::More' => 0,
     },

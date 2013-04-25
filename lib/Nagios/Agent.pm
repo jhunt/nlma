@@ -330,6 +330,7 @@ sub parse_config
 
 	my $yaml = slurp($file) or return undef;
 	my ($config, $checks) = Load($yaml);
+	$config->{startup}  = gettimeofday unless $config->{startup};
 	$config->{warnings} = [];
 	$config->{errors}   = [];
 
@@ -506,6 +507,8 @@ sub dump_config
 
 	my $file = "$config->{dump}/nlma.".gettimeofday().".yml";
 	INFO("dumping config+checks to $file");
+
+	$config->{lastdump} = gettimeofday;
 
 	my $fh;
 	if (open $fh, ">$file") {

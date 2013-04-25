@@ -58,6 +58,15 @@ reload()
 	return $RETVAL
 }
 
+dump()
+{
+	echo -n $"Dumping $NPOLL  "
+	killproc $BINDIR/$NPOLL -10
+	RETVAL=$?
+	echo
+	return $RETVAL
+}
+
 case "$1" in
 	start)
 		start
@@ -72,10 +81,13 @@ case "$1" in
 	reload)
 		reload
 		;;
+	dump)
+		dump
+		;;
 	status)
 		status $BINDIR/$NPOLL
 		;;
 	*)
-		echo $"Usage: $0 {start|stop|restart|reload|status}"
+		echo $"Usage: $0 {start|stop|restart|reload|dump|status}"
 		exit 1
 esac
