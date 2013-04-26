@@ -61,9 +61,15 @@ reload()
 dump()
 {
 	echo -n $"Dumping $NPOLL  "
-	killproc $BINDIR/$NPOLL -10
+	killproc $BINDIR/$NPOLL -USR1
 	RETVAL=$?
 	echo
+
+	if [[ "$RETVAL" = 0 ]]; then
+		FILE=$(ls -1t /var/tmp/nlma.*.yml 2>/dev/null | head -n1)
+		echo "Dumped NLMA state to $FILE"
+	fi
+
 	return $RETVAL
 }
 
