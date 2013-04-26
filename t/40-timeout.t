@@ -6,7 +6,7 @@ use strict;
 use Test::More;
 use Cwd;
 use Capture::Tiny ':all';
-use POSIX;
+use POSIX qw/WIFEXITED WEXITSTATUS/;
 
 require "t/common.pl";
 my $CMD = "bin/nlma-timeout";
