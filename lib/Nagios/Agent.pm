@@ -331,6 +331,7 @@ sub parse_config
 	my $yaml = slurp($file) or return undef;
 	my ($config, $checks) = Load($yaml);
 	$config->{startup}  = gettimeofday unless $config->{startup};
+	$config->{version}  = $Nagios::Agent::VERSION;
 	$config->{warnings} = [];
 	$config->{errors}   = [];
 
