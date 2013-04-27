@@ -55,7 +55,7 @@ sub format_time
 {
 	my ($time, $default) = @_;
 	$default ||= "-";
-	return $default unless defined $time;
+	return $default unless defined $time and $time > 0;
 	return $default if $time < 0;
 
 	my ($s, $ms) = split /\./, $time;
