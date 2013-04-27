@@ -174,8 +174,13 @@ if ($OPTIONS{full}) {
 		print "$name\n";
 		print "\n";
 		print "  SCHEDULING:\n";
-		print "    last ran @ ".format_time($check->{started_at}, "-")." (for ".format_age($check->{duration}, "unknown duration").")\n";
-		print "    next run @ ".format_time($check->{next_run})." (".format_age($check->{next_run} - $check->{started_at}, "???s")." later)\n";
+		if ($check->{pid} < 0) {
+			print "    last ran @ ".format_time($check->{started_at}, "-")." (for ".format_age($check->{duration}, "unknown duration").")\n";
+			print "    next run @ ".format_time($check->{next_run})." (".format_age($check->{next_run} - $check->{started_at}, "???s")." later)\n";
+		} else {
+			print "    currently running (as of ".format_time($conf->{lastdump}, "dump").")\n";
+			print "    started at ".format_time($check->{started_at}, "???")."\n";
+		}
 		print "\n";
 		print "    checks every ".format_age($check->{interval})." normally, with a ".format_age($check->{timeout})." timeout.\n";
 		if ($check->{attempts} > 1) {
