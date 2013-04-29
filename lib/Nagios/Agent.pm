@@ -134,7 +134,7 @@ sub run_check
 	}
 
 	if ($check->{sudo}) {
-		$command = "/usr/bin/sudo -n -u $check->{sudo} /usr/bin/nlma_timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
+		$command = "/usr/bin/sudo -n -u $check->{sudo} /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
 	}
 
 	INFO("executing '$command' via /bin/sh -c");
