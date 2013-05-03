@@ -16,7 +16,7 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
-our $VERSION = '2.3';
+our $VERSION = '2.4';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
