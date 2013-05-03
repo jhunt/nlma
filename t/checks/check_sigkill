@@ -1,0 +1,4 @@
+#!/usr/bin/perl
+
+local $SIG{TERM} = sub {sleep 30};
+sleep 30;

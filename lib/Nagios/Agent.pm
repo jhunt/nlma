@@ -134,7 +134,7 @@ sub run_check
 	}
 
 	if ($check->{sudo}) {
-		$command = "/usr/bin/sudo -n -u $check->{sudo} $command";
+		$command = "/usr/bin/sudo -n -u $check->{sudo} /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
 	}
 
 	INFO("executing '$command' via /bin/sh -c");
@@ -330,6 +330,8 @@ sub parse_config
 
 	my $yaml = slurp($file) or return undef;
 	my ($config, $checks) = Load($yaml);
+	$config->{startup}  = gettimeofday unless $config->{startup};
+	$config->{version}  = $Nagios::Agent::VERSION;
 	$config->{warnings} = [];
 	$config->{errors}   = [];
 
@@ -517,6 +519,8 @@ sub dump_config
 	my $file = "$config->{dump}/nlma.".gettimeofday().".yml";
 	INFO("dumping config+checks to $file");
 
+	$config->{lastdump} = gettimeofday;
+
 	my $fh;
 	if (open $fh, ">$file") {
 		print $fh Dump($config, $checks);
@@ -629,12 +633,8 @@ sub waitall
 
 	do {
 		@pipes = grep { $_ } map { $_->{pipe} } @$checks;
-		DEBUG("Attempting to read from ".scalar @pipes." file descriptors");
-
 		@readable = IO::Select->new(@pipes)->can_read(0);
-		DEBUG("Found ".scalar @readable." readable file descriptors");
 		read_once($lookup{$_}) for @readable;
-
 	} while @readable;
 
 	# Then, we see if any child wants to terminate,
