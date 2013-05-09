@@ -220,4 +220,11 @@ use Sys::Hostname qw(hostname);
 		], "Check redefinition triggers warnings");
 }
 
+{ # Parsing a bad config should return (undef,undef)
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad.yml');
+
+	ok(!defined($config), "config result not defined for bad YAML");
+	ok(!defined($checks), "checks result not defined for bad YAML");
+}
+
 done_testing;

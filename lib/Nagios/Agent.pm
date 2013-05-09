@@ -336,7 +336,7 @@ sub parse_config
 	DEBUG("parsing configuration in $file");
 
 	my $yaml = slurp($file) or return undef;
-	my ($config, $checks) = Load($yaml);
+	my ($config, $checks) = eval { Load($yaml) } or return undef;
 	$config->{startup}  = gettimeofday unless $config->{startup};
 	$config->{version}  = $Nagios::Agent::VERSION;
 	$config->{warnings} = [];
@@ -768,6 +768,10 @@ sub runall
 
 
 	my ($config, $checks) = parse_config($config_file);
+	if (!$config) {
+		print STDERR "$config_file: bad configuration file (check YAML syntax)\n";
+		exit 1;
+	}
 	print "nlma v$VERSION starting up (running as $config->{user}:$config->{group})\n";
 	drop_privs($config->{user}, $config->{group});
 
@@ -816,6 +820,10 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
+	if (!$config) {
+		print STDERR "$config_file: bad configuration file (check YAML syntax)\n";
+		exit 1;
+	}
 
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
@@ -836,13 +844,17 @@ sub start
 			INFO("SIGHUP caught; reconfiguring");
 			$RECONFIG = 0;
 			my ($newconfig, $newchecks) = parse_config($config_file);
+			if (!$newconfig) {
+				ERROR("Failed to parse $config_file; ignoring SIGHUP reload request");
 
-			# Do any new-config, old-config transitional tasks
+			} else {
+				# Do any new-config, old-config transitional tasks
 
-			$config = $newconfig;
-			configure_syslog($config->{log}) unless $foreground;
+				$config = $newconfig;
+				configure_syslog($config->{log}) unless $foreground;
 
-			merge_check_defs($checks, $newchecks);
+				merge_check_defs($checks, $newchecks);
+			}
 		}
 
 		$checks = [grep { $_->{pid} > 0 || !exists $_->{deleted} } @$checks];
@@ -1015,6 +1027,10 @@ or return B<undef> if an error condition occurs.
 Parse the Nagios::Agent YAML configuration, supplying default values
 where appropriate.  Returns two values, the global configuration and
 an array of normalized check definitions.
+
+If any errors are encountered parsing the file, B<undef> will be
+returned.  Callers should check this before doing anything with the
+configuration (like trying to reconfigure on a live run)
 
 =item B<dump_config($config, $checks)>
 
