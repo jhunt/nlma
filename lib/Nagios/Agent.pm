@@ -16,6 +16,13 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
+my %STATE_CODES = (
+	OK       => 0,
+	WARNING  => 1,
+	CRITICAL => 2,
+	UNKNOWN  => 3,
+);
+
 our $VERSION = '2.4';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
@@ -195,7 +202,7 @@ sub reap_check
 
 	if ($check->{sigkill} || $check->{sigterm}) {
 		$check->{output} = "check timed out (exceeded NLMA timeout)";
-		$check->{exit_status} = 3; # UNKNOWN
+		$check->{exit_status} = $STATE_CODES{$check->{on_timeout}};
 	}
 	$check->{output} = clean_check_output($check->{output});
 
@@ -217,7 +224,7 @@ sub reap_check
 	# if the plugin did not produce output to STDOUT, force
 	# an UNKNOWN state; something amy be wrong with the plugin...
 	if (!$check->{output}) {
-		$check->{exit_status} = 3; # UNKNOWN
+		$check->{exit_status} = $STATE_CODES{UNKNOWN};
 
 		# Use STDERR if it is available.
 		if ($check->{output} = clean_check_output($check->{stderr})) {
@@ -366,6 +373,16 @@ sub parse_config
 		$config->{timeout} = 30;
 		DEBUG("no config for timeout: using default of $config->{timeout}s");
 	}
+	if (!exists $config->{on_timeout}) {
+		$config->{on_timeout} = "CRITICAL";
+		DEBUG("no config for on_timeout: using default of $config->{on_timeout}");
+	} else {
+		$config->{on_timeout} = uc($config->{on_timeout});
+		if ($config->{on_timeout} !~ m/^(WARNING|CRITICAL|UNKNOWN)/) {
+			WARN("$config->{on_timeout} is not an acceptable on_timeout value; falling back to default of 'CRITICAL'");
+			$config->{on_timeout} = "CRITICAL";
+		}
+	}
 	if (!exists $config->{interval}) {
 		$config->{interval} = 300;
 		DEBUG("no config for interval: using default of $config->{interval}s");
@@ -459,6 +476,7 @@ sub parse_config
 
 		# Default timeout of 30s
 		$check->{timeout} = $check->{timeout} || $config->{timeout};
+		$check->{on_timeout} = $config->{on_timeout};
 
 		# Default interval of 5 minutes
 		$check->{interval} = $check->{interval} || $config->{interval};
@@ -706,16 +724,16 @@ sub checkin
 	my $fake_check = {
 		hostname => $config->{hostname},
 		name => $config->{checkin}->{service},
-		exit_status => 0, # OK
+		exit_status => $STATE_CODES{OK},
 		output => "$nchecks checks run, ${avg_time}s average runtime",
 	};
 
 	if (@{$config->{errors}}) {
-		$fake_check->{exit_status} = 2; # ERROR
+		$fake_check->{exit_status} = $STATE_CODES{CRITICAL};
 		$fake_check->{output} = join('.  ', @{$config->{errors}});
 
 	} elsif (@{$config->{warnings}}) {
-		$fake_check->{exit_status} = 1; # WARNING
+		$fake_check->{exit_status} = $STATE_CODES{WARNING};
 		$fake_check->{output} = join('.  ', @{$config->{warnings}});
 	}
 

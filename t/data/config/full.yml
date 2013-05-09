@@ -11,6 +11,7 @@ parents:
 send_nsca: /opt/other/send_nsca -c /etc/nsca.cfg
 
 timeout: 75
+on_timeout: warning
 interval: 240
 startup_splay: 17
 

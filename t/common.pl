@@ -28,6 +28,7 @@ sub mock_check
 	$check->{pid} = 4242            unless exists $check->{pid};
 	$check->{output} = ''           unless exists $check->{output};
 	$check->{command} = 'check_it'  unless exists $check->{command};
+	$check->{on_timeout} = 'UNKNOWN' unless exists $check->{on_timeout};
 
 	$check;
 }
