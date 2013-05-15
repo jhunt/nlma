@@ -88,6 +88,8 @@ sub row_color
 	my ($check) = @_;
 	return "blue"    if $check->{sigkill};
 	return "magenta" if $check->{sigterm};
+	return "cyan"    if $check->{exit_status} < 0 and $check->{pid} > 0;
+	return "white"   if $check->{exit_status} < 0;
 	return $COLORS[$check->{exit_status}];
 }
 
