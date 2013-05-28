@@ -23,6 +23,8 @@ my %STATE_CODES = (
 	UNKNOWN  => 3,
 );
 
+my %LOCKS = ();
+
 our $VERSION = '2.4';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
@@ -94,9 +96,9 @@ sub daemonize
 
 sub schedule_check
 {
-	my ($check) = @_;
+	my ($check, $interval) = @_;
 
-	my $interval = $check->{interval};
+	$interval ||= $check->{interval};
 	if ($check->{is_soft_state}) {
 		$interval = $check->{retry};
 	}
@@ -108,6 +110,15 @@ sub schedule_check
 sub run_check
 {
 	my ($check, $root) = @_;
+
+	if (locked($check->{lock})) {
+		INFO("check $check->{name} attempted to run, but is locked by " . keymaster()->{$check->{lock}}{locked_by});
+		schedule_check($check, 5);
+		return 1; # return 1, so the lock doesn't get undone, as this is not an error running the check,
+		          # but rather desired behavior
+	} else {
+		Nagios::Agent::lock($check->{lock}, locked_by => $check->{name}) if $check->{lock};
+	}
 
 	my ($readfd, $writefd);
 	pipe $readfd, $writefd;
@@ -192,6 +203,7 @@ sub run_check
 sub reap_check
 {
 	my ($check, $status) = @_;
+	unlock($check->{lock}) if $check->{lock};
 	$check->{ended_at} = gettimeofday;
 	$check->{duration} = $check->{ended_at} - $check->{started_at};
 	$check->{exit_status} = (WIFEXITED($status) ? WEXITSTATUS($status) : -1);
@@ -784,7 +796,10 @@ sub runall
 	for my $check (@$checks) {
 		print "$check->{name}\n";
 		print "   `$check->{command}`\n";
-		run_check($check, $config->{plugin_root});
+		if (! run_check($check, $config->{plugin_root})) {
+			# Remove locks if we failed to run the check
+			unlock($check->{lock}) if $check->{lock};
+		}
 		read_all($check);
 		waitpid($check->{pid}, 0);
 		reap_check($check, $?);
@@ -911,6 +926,45 @@ sub start
 			waitpid($check->{pid}, 0);
 		}
 	}
+}
+
+sub lock
+{
+	my ($key, %opts) = @_;
+	return 0 unless $key;
+	if (! locked($key)) {
+		$LOCKS{$key} = {};
+		if (%opts) {
+			$LOCKS{$key} = {map { $_ => $opts{$_} } keys %opts};
+		}
+		$LOCKS{$key}{locked} = 1;
+		$LOCKS{$key}{locked_at} = time;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+sub unlock
+{
+	my ($key) = @_;
+	delete $LOCKS{$key};
+}
+
+sub locked
+{
+	my ($key) = @_;
+	return 0 unless $key;
+	if ( exists $LOCKS{$key} && exists $LOCKS{$key}{locked}) {
+		return $LOCKS{$key}{locked};
+	} else {
+		return 0;
+	}
+}
+
+sub keymaster
+{
+	return \%LOCKS;
 }
 
 1;
@@ -1101,6 +1155,27 @@ average run time, etc.).
 =item B<sigusr1_handler>
 
 Signal handles for dealing with external control mechanisms.
+
+=item B<lock>
+
+Creates a named mutex for locking checks to prevent them from running simultaneously.
+
+Takes a mandatory lock name, followed by an optional hash to set custom lock attributes,
+such as 'locked_by'.
+
+=item B<locked>
+
+Takes a mandatory lock name, and returns true or false whether or not it is currently
+locked.
+
+=item B<unlock>
+
+Takes a mandatory lock name, and unlocks it.
+
+=item B<keymaster>
+
+Returns a hashref of the entire lock structure. This should contain what is actively
+locked, when it was locked, and what check it was locked by.
 
 =back
 
