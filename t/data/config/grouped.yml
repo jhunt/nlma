@@ -1,0 +1,19 @@
+---
+# default globals
+---
+# checks
+
+check1:
+  command: command1
+  group:   feeders
+
+check2:
+  command: command2
+  group:   feeders
+
+check3:
+  command: command3
+  group:   filers
+
+check4:
+  command: commmand4

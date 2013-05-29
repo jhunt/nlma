@@ -269,6 +269,15 @@ sub reap_check
 	return 0;
 }
 
+sub filter_checks
+{
+	my ($checks, $q) = @_;
+	$q = 'default' unless $q;
+	my %Q = map { $_ => 1 } split /\s*,\s*/, $q;
+	return $checks if $Q{all};
+	return [grep { $Q{$_->{group}} } @$checks];
+}
+
 sub send_nsca
 {
 	my ($parent, $cmd, @checks) = @_;
@@ -489,6 +498,9 @@ sub parse_config
 
 		# Use default check environment
 		$check->{environment} = $check->{environment} || 'default';
+
+		# Use default check group
+		$check->{group} = $check->{group} || 'default';
 
 		# Use global host definition by default
 		$check->{hostname} = $check->{hostname} || $config->{hostname};
@@ -758,29 +770,9 @@ sub sigusr1_handler { $DUMPCONFIG = 1; }
 
 sub runall
 {
-	my ($class, $config_file, $noop) = @_;
-
-	$config_file = abs_path($config_file);
-	if (!-r $config_file) {
-		print STDERR "$config_file: $!\n";
-		exit 1;
-	}
-
-
-	my ($config, $checks) = parse_config($config_file);
-	if (!$config) {
-		print STDERR "$config_file: bad configuration file (check YAML syntax)\n";
-		exit 1;
-	}
-	print "nlma v$VERSION starting up (running as $config->{user}:$config->{group})\n";
-	drop_privs($config->{user}, $config->{group});
-
-	print "configured to run ",scalar @$checks," checks\n";
-	print "NOOP: running under --noop; not submitting check results.\n" if $noop;
-	print "\n";
+	my ($class, $config, $checks, $noop) = @_;
 
 	my %results = ();
-
 	for my $check (@$checks) {
 		print "$check->{name}\n";
 		print "   `$check->{command}`\n";
@@ -793,11 +785,7 @@ sub runall
 		push @{$results{$check->{environment}}}, $check;
 	}
 
-	if ($noop) {
-		print "NOOP: running under --noop; not submitting check results.\n";
-		return;
-	}
-
+	return if $noop;
 	for my $env (keys %results) {
 		for my $parent (@{$config->{parents}{$env}}) {
 			print "NSCA: $env \@$parent\n";
@@ -1012,6 +1000,14 @@ some other signal).
 This function handles various edge cases, including check runs that
 created no output, and check runs that were killed because of timeouts.
 
+=item B<filter_checks($checks, $query)>
+
+Given a set of checks, filter them to a subset, based on an arbitrary,
+comma-separated list of groups.  The keywords B<default> and B<all> have
+special meaning; B<default> matches checks without a group (and any that
+are explicitly placed in the C<default> group).  B<all> matches all
+checks, regardless of their grouping.
+
 =item B<send_nsca($parent, $cmd, @checks)>
 
 Fork a child process to submit results to a single Nagios parent via
@@ -1071,7 +1067,7 @@ Read from a child process output pipe, until the pipe is closed or an
 error is detected.
 
 This function is based off of B<read_once>, and is called from
-B<reap_check> and B<run_all> (for `nlma -tv`, which doesn't call the
+B<reap_check> and B<runall> (for `nlma -tv`, which doesn't call the
 B<waitall> function and therefore needs to read child output to prevent
 deadlock).
 

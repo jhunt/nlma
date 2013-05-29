@@ -12,6 +12,7 @@ use strict;
 
 use Nagios::Agent;
 use Getopt::Long;
+use Cwd qw(abs_path);
 use Log::Log4perl qw(:easy);
 
 my $DEFAULT_CONFIG_FILE_PATH = "/etc/nlma.yml";
@@ -62,6 +63,8 @@ GetOptions(\%opt,
 	"runall|test|t",
 	"noop|n",
 	"verbose|v+",
+	"only|o=s",
+	"all",
 );
 
 if ($opt{help}) {
@@ -73,7 +76,31 @@ if ($opt{runall}) {
 	Log::Log4perl->easy_init($INFO)  if $opt{verbose} > 0;
 	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 1;
 
-	Nagios::Agent->runall($opt{config}, $opt{noop});
+	$opt{config} = abs_path($opt{config});
+	if (!-r $opt{config}) {
+		print STDERR "$opt{config}: $!\n";
+		exit 1;
+	}
+
+	my ($config, $checks) = Nagios::Agent::parse_config($opt{config});
+	if (!$config) {
+		print STDERR "$opt{config}: bad configuration file (check YAML syntax)\n";
+		exit 1;
+	}
+
+	$opt{only} = 'default' unless $opt{only};
+	$opt{only} = 'all' if $opt{all};
+	$checks = Nagios::Agent::filter_checks($checks, $opt{only});
+
+	print "nlma v$Nagios::Agent::VERSION starting up (running as $config->{user}:$config->{group})\n";
+	Nagios::Agent::drop_privs($config->{user}, $config->{group});
+
+	print "running ",scalar @$checks," checks ($opt{only})\n";
+	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
+	print "\n";
+
+	Nagios::Agent->runall($config, $checks, $opt{noop});
+	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
 
 } else {
 	if ($opt{foreground}) {
@@ -148,6 +175,17 @@ as the user and group in the configuration.  As such, you must either
 run the command as that user initially, or as root.
 
 B<nlma> will not fork off into the background when run with this argument.
+
+=item B<--only>, B<-o> list,of,groups
+
+A comma-separated list of check groups to run.  If you don't know why you
+would need this, you don't need this.  This is only effective when paird
+with B<--test>.
+
+=item B<--all>
+
+Run all checks, regardless of groups.  Equivalent to B<--only all>.
+This is only effective when paird with B<--test>.
 
 =item B<--noop>, B<-n>
 
@@ -355,6 +393,14 @@ be a 10 seconds gap between the termination of one run and the start of
 another.
 
 The default interval is 300 seconds (5 minutes).
+
+=item B<group>
+
+Which group this service check belongs to.  Different groups are subject
+to different scheduling policies.  Grouping also begins to matter when
+running B<nlma --test>.
+
+The default group is C<default>.
 
 =item B<timeout>
 
