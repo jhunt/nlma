@@ -1,5 +1,12 @@
 ---
 # default globals
+
+startup_splay: 10000
+
+groups:
+  feeders:
+    splay: 120
+
 ---
 # checks
 

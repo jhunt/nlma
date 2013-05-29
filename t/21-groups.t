@@ -60,4 +60,42 @@ use Nagios::Agent;
 		"Filtered to bogus group of checks (empty!)");
 }
 
+{ # global group configs
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/grouped.yml');
+	cmp_deeply({
+			name         => 'default',
+			min_interval => 300,
+			splay        => 10000,
+			count        => 1,
+		},
+		$config->{groups}{default},
+		"Default group inherits splay from global");
+
+	cmp_deeply({
+			name         => 'filers',
+			min_interval => 300,
+			splay        => 10000,
+			count        => 1,
+		}, $config->{groups}{filers},
+		"Detected filers group from check definitions");
+
+	cmp_deeply({
+			name         => 'feeders',
+			min_interval => 300,
+			splay        => 120,
+			count        => 2,
+		}, $config->{groups}{feeders},
+		"feeders group is explicitly configured");
+}
+
+{ # per-group splay
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/grouped.yml');
+	$checks = [sort { $a->{name} cmp $b->{name} } @$checks];
+
+	is(abs($checks->[0]{next_run} - $checks->[1]{next_run}), 120,
+		"splay between feeders checks is 120");
+	is($checks->[0]{next_run}, $checks->[2]{next_run},
+		"all groups start at the same point in time");
+}
+
 done_testing;

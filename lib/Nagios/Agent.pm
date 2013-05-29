@@ -505,7 +505,9 @@ sub parse_config
 		# Use global host definition by default
 		$check->{hostname} = $check->{hostname} || $config->{hostname};
 
+		$cname = "$check->{group}/$cname";
 		DEBUG("$cname name is '$check->{name}'");
+		DEBUG("$cname group is '$check->{group}'");
 		DEBUG("$cname environment is '$check->{environment}'");
 		DEBUG("$cname command is '$check->{command}'");
 		DEBUG("$cname interval is $check->{interval} seconds");
@@ -523,20 +525,43 @@ sub parse_config
 		$min_interval = MIN($min_interval, $check->{interval});
 
 		push @list, $check;
-	}
 
-	if (@list and $config->{startup_splay} <= 0) {
-		$config->{startup_splay} = $min_interval / @list;
-		INFO("Auto-calculated startup splay as ".scalar(@list)." / $min_interval == $config->{startup_splay}");
+		$config->{groups}{$check->{group}}{name} = $check->{group}; # auto-vivify!
+		$config->{groups}{$check->{group}}{count}++;
+
+		if (!exists $config->{groups}{$check->{group}}{min_interval}) {
+			$config->{groups}{$check->{group}}{min_interval} = $check->{interval};
+		}
+
+		$config->{groups}{$check->{group}}{min_interval} = MIN(
+			$config->{groups}{$check->{group}}{min_interval},
+			$check->{interval}
+		);
 	}
 
 	# Stagger-schedule the first run, longest interval runs first
 	@list = sort { $b->{interval} <=> $a->{interval} } @list;
 
-	my $run_at = gettimeofday;
-	for my $check (@list) {
-		$check->{next_run} = $run_at;
-		$run_at += $config->{startup_splay};
+	my $START = gettimeofday;
+	for my $group (values %{$config->{groups}}) {
+		next unless $group->{count};
+
+		if (!exists $group->{splay}) {
+			$group->{splay} = $config->{startup_splay};
+			INFO("Falling back to default splay of $group->{splay} for $group->{name} checks");
+		}
+
+		if ($group->{splay} <= 0) {
+			$group->{splay} = $group->{min_interval} / $group->{count};
+			INFO("Auto-calculated splay for $group->{name} checks as $group->{count}/$group->{min_interval} == $group->{splay}");
+		}
+
+		my $run_at = $START;
+		for my $check (@list) {
+			next unless $check->{group} eq $group->{name};
+			$check->{next_run} = $run_at;
+			$run_at += $group->{splay};
+		}
 	}
 
 	return $config, \@list;
