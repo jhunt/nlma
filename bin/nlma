@@ -133,6 +133,8 @@ B<nlma> - The NLMA Local Monitoring Agent
 
 nlma [-hFvtn] [-c /path/to/config.yml]
 
+nlma -t [--all] [--only group1,group2,etc.] [--noop]
+
 =head1 DESCRIPTION
 
 NLMA is a host-side monitoring agent that schedules and runs
@@ -179,13 +181,13 @@ B<nlma> will not fork off into the background when run with this argument.
 =item B<--only>, B<-o> list,of,groups
 
 A comma-separated list of check groups to run.  If you don't know why you
-would need this, you don't need this.  This is only effective when paird
+would need this, you don't need this.  This is only effective when paired
 with B<--test>.
 
 =item B<--all>
 
 Run all checks, regardless of groups.  Equivalent to B<--only all>.
-This is only effective when paird with B<--test>.
+This is only effective when paired with B<--test>.
 
 =item B<--noop>, B<-n>
 
