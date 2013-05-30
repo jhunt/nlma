@@ -601,13 +601,13 @@ sub merge_check_defs
 		my $found = 0;
 		for my $oldcheck (@$old) {
 			next unless $oldcheck->{name} eq $newcheck->{name};
+			next unless $oldcheck->{hostname} eq $newcheck->{hostname};
 			$found = 1;
 
 			$oldcheck->{environment} = $newcheck->{environment};
 			$oldcheck->{command}  = $newcheck->{command};
 			$oldcheck->{interval} = $newcheck->{interval};
 			$oldcheck->{timeout}  = $newcheck->{timeout};
-			$oldcheck->{hostname} = $newcheck->{hostname};
 
 			DEBUG("updating check definition for $oldcheck->{name}");
 
