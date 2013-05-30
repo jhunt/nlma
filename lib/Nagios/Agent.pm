@@ -23,7 +23,7 @@ my %STATE_CODES = (
 	UNKNOWN  => 3,
 );
 
-our $VERSION = '2.4';
+our $VERSION = '2.5';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
