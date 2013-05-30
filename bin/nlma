@@ -351,9 +351,9 @@ processes (like check plugins and send_nsca).  Defaults to
 
 =item B<startup_splay>
 
-When nlma starts up, it will try to schedule all defined checks to run
-as quickly as possible.  The I<startup splay> influences this behavior,
-and specifies an amount of time (in seconds) to spread each check out.
+Determines the global scheduling splay, used for groups that do not
+have a custom B<splay> setting.  See B<SCHEDULING> for full details of
+the NLMA scheduling algorithm.
 
 The default value of 0 seconds causes nlma to calculate the appropriate
 splay for scheduling, based on group and minimum interval.
@@ -463,6 +463,91 @@ the nlma daemon.  See B<user> under B<GLOBAL CONFIGURATION>
 =back
 
 =head1 SCHEDULING
+
+NLMA must schedule checks responsibly, by following these guidelines:
+
+=over
+
+=item 1. Checks Should Run Regularly
+
+Other parts of the monitoring system depend on timely arrival of data from
+NLMA instances, and often me decisions based on presence or absence of the
+data.  It is vital that a check that should run every 5 minutes actually
+runs every 5 minutes.
+
+=item 2. Don't Overload The Host
+
+NLMA should observe the local host with as little impact to its normal
+operation as possible.  Checks should be spread out to avoid CPU clustering
+that may negatively impact host performance.
+
+=item 3. Handle Restarts Gracefully
+
+The first two items need to be followed even through full restarts of the
+NLMA daemon, since that is how Puppet deploys new NLMA configs.
+
+=back
+
+In order to follow all three of these guidelines, NLMA uses a group-based
+scheduling algorithm.  Checks are divided up into groups, either explicitly
+into named groups, or implicitly into the C<default> group.  Each group
+has its own separate schedule that is not affected by checks in any other
+group.
+
+Every time a check finished executing, it is immediately rescheduled,
+based on its I<interval> and the last execution time.  NLMA specifically
+uses the last execution time to ensure that checks do not begin to drift
+off-schedule because of latency in the check plugin.
+
+Here is an example.  A check, local_mem, is configured to run every 2
+minutes.  NLMA initially schedules it to run at 14:30:00, and begins
+execution of the check plugin precisely on time.  The check takes 67.4
+seconds to run, finishing at 14:31:17.4.  Then, NLMA reschedules it to
+run again at 14:32:00, 2 minutes from 14:30:00.
+
+In order to avoid overloading the monitored host, NLMA will spread out
+initial scheduled runs of all checks within a group using the concept
+of splay.
+
+If a group has a non-zero, non-negative splay, checks will be spread out
+accordingly:
+
+    ---
+    # global configuration
+    groups:
+      filers:
+        splay: 120
+
+    ---
+    # check configurations
+
+                                 # if we start at 13:15:00 ...
+    check1:
+      command: check1
+      group:   filers            # check1 will run at 13:15:00
+
+    check2:
+      command: check2
+      group:   filers            # check2 will run at 13:17:00
+
+    check3:
+      command: check3
+      group:   filers            # check3 will run at 13:19:00
+
+Splay can be auto-calculated.  A value of 0 (or a negative value) for
+a group splay will cause NLMA to determine the smallest check interval
+of all checks in the group, and then calculate an appropriate splay
+value so that all checks in the group will be run in that time window.
+
+For example, if a test group contains 15 checks, running at a mix of
+intervals ranging from 5 minutes to 20 minutes, the automatic splay
+would be 20 seconds, and all 15 checks would be initially scheduled
+to run within 5 minutes.
+
+Splay goes a long way to handle regular restarts, but constantly
+restarting NLMA may lead to some checks never being run.  The solution
+to this is decidedly low-tech: don't restart often, and use freshness
+thresholds wisely.
 
 =head1 SIGNAL HANDLING
 
