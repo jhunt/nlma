@@ -12,6 +12,7 @@ use strict;
 
 use Nagios::Agent;
 use Getopt::Long;
+use Cwd qw(abs_path);
 use Log::Log4perl qw(:easy);
 
 my $DEFAULT_CONFIG_FILE_PATH = "/etc/nlma.yml";
@@ -36,6 +37,20 @@ sub usage
 	print " --runall, --test, -t\n";
 	print "      Ignore scheduling and execute all configured\n";
 	print "      checks serially; useful for testing.\n";
+	print "\n";
+	print " --only, -o list,of,groups\n";
+	print "      Restricts --runall to specific groups defined in\n";
+	print "      the config file. Only checks matching the comma\n";
+	print "      separated list of groups will be run.\n";
+	print "\n";
+	print "      This is only applicable with --runall.\n";
+	print "\n";
+	print " --all\n";
+	print "      By default only the checks with group 'default' (or\n";
+	print "      those without a group defined) will be run. This forces\n";
+	print "      all checks to be run.\n";
+	print "\n";
+	print "      This is only applicable with --runall.\n";
 	print "\n";
 	print " --noop, -n\n";
 	print "      When combined with --runall (-t), don't actually\n";
@@ -62,6 +77,8 @@ GetOptions(\%opt,
 	"runall|test|t",
 	"noop|n",
 	"verbose|v+",
+	"only|o=s",
+	"all",
 );
 
 if ($opt{help}) {
@@ -73,7 +90,31 @@ if ($opt{runall}) {
 	Log::Log4perl->easy_init($INFO)  if $opt{verbose} > 0;
 	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 1;
 
-	Nagios::Agent->runall($opt{config}, $opt{noop});
+	$opt{config} = abs_path($opt{config});
+	if (!-r $opt{config}) {
+		print STDERR "$opt{config}: $!\n";
+		exit 1;
+	}
+
+	my ($config, $checks) = Nagios::Agent::parse_config($opt{config});
+	if (!$config) {
+		print STDERR "$opt{config}: bad configuration file (check YAML syntax)\n";
+		exit 1;
+	}
+
+	$opt{only} = 'default' unless $opt{only};
+	$opt{only} = 'all' if $opt{all};
+	$checks = Nagios::Agent::filter_checks($checks, $opt{only});
+
+	print "nlma v$Nagios::Agent::VERSION starting up (running as $config->{user}:$config->{group})\n";
+	Nagios::Agent::drop_privs($config->{user}, $config->{group});
+
+	print "running ",scalar @$checks," checks ($opt{only})\n";
+	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
+	print "\n";
+
+	Nagios::Agent->runall($config, $checks, $opt{noop});
+	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
 
 } else {
 	if ($opt{foreground}) {
@@ -105,6 +146,8 @@ B<nlma> - The NLMA Local Monitoring Agent
 =head1 SYNOPSIS
 
 nlma [-hFvtn] [-c /path/to/config.yml]
+
+nlma -t [--all] [--only group1,group2,etc.] [--noop]
 
 =head1 DESCRIPTION
 
@@ -148,6 +191,17 @@ as the user and group in the configuration.  As such, you must either
 run the command as that user initially, or as root.
 
 B<nlma> will not fork off into the background when run with this argument.
+
+=item B<--only>, B<-o> list,of,groups
+
+A comma-separated list of check groups to run.  If you don't know why you
+would need this, you don't need this.  This is only effective when paired
+with B<--test>.
+
+=item B<--all>
+
+Run all checks, regardless of groups.  Equivalent to B<--only all>.
+This is only effective when paired with B<--test>.
 
 =item B<--noop>, B<-n>
 
@@ -311,11 +365,29 @@ processes (like check plugins and send_nsca).  Defaults to
 
 =item B<startup_splay>
 
-When nlma starts up, it will try to schedule all defined checks to run
-as quickly as possible.  The I<startup splay> influences this behavior,
-and specifies an amount of time (in seconds) to spread each check out.
-The default value of 15 seconds causes nlma to schedule each initial
-check run 15 seconds apart.
+Determines the global scheduling splay, used for groups that do not
+have a custom B<splay> setting.  See B<SCHEDULING> for full details of
+the NLMA scheduling algorithm.
+
+The default value of 0 seconds causes nlma to calculate the appropriate
+splay for scheduling, based on group and minimum interval.
+
+=item B<groups>
+
+Checks are scheduled according to the policy of their groups, or the
+default policy.  This configuration subtree manages group-specific
+settings.
+
+It supports the following keys:
+
+=over
+
+=item B<splay>
+
+The splay value for scheduling checks in this group.  If not specified,
+the value is inherited from the global B<startup_splay> setting.
+
+=back
 
 =back
 
@@ -355,6 +427,14 @@ be a 10 seconds gap between the termination of one run and the start of
 another.
 
 The default interval is 300 seconds (5 minutes).
+
+=item B<group>
+
+Which group this service check belongs to.  Different groups are subject
+to different scheduling policies.  Grouping also begins to matter when
+running B<nlma --test>.
+
+The default group is C<default>.
 
 =item B<timeout>
 
@@ -397,6 +477,91 @@ the nlma daemon.  See B<user> under B<GLOBAL CONFIGURATION>
 =back
 
 =head1 SCHEDULING
+
+NLMA must schedule checks responsibly, by following these guidelines:
+
+=over
+
+=item 1. Checks Should Run Regularly
+
+Other parts of the monitoring system depend on timely arrival of data from
+NLMA instances, and often me decisions based on presence or absence of the
+data.  It is vital that a check that should run every 5 minutes actually
+runs every 5 minutes.
+
+=item 2. Don't Overload The Host
+
+NLMA should observe the local host with as little impact to its normal
+operation as possible.  Checks should be spread out to avoid CPU clustering
+that may negatively impact host performance.
+
+=item 3. Handle Restarts Gracefully
+
+The first two items need to be followed even through full restarts of the
+NLMA daemon, since that is how Puppet deploys new NLMA configs.
+
+=back
+
+In order to follow all three of these guidelines, NLMA uses a group-based
+scheduling algorithm.  Checks are divided up into groups, either explicitly
+into named groups, or implicitly into the C<default> group.  Each group
+has its own separate schedule that is not affected by checks in any other
+group.
+
+Every time a check finished executing, it is immediately rescheduled,
+based on its I<interval> and the last execution time.  NLMA specifically
+uses the last execution time to ensure that checks do not begin to drift
+off-schedule because of latency in the check plugin.
+
+Here is an example.  A check, local_mem, is configured to run every 2
+minutes.  NLMA initially schedules it to run at 14:30:00, and begins
+execution of the check plugin precisely on time.  The check takes 67.4
+seconds to run, finishing at 14:31:17.4.  Then, NLMA reschedules it to
+run again at 14:32:00, 2 minutes from 14:30:00.
+
+In order to avoid overloading the monitored host, NLMA will spread out
+initial scheduled runs of all checks within a group using the concept
+of splay.
+
+If a group has a non-zero, non-negative splay, checks will be spread out
+accordingly:
+
+    ---
+    # global configuration
+    groups:
+      filers:
+        splay: 120
+
+    ---
+    # check configurations
+
+                                 # if we start at 13:15:00 ...
+    check1:
+      command: check1
+      group:   filers            # check1 will run at 13:15:00
+
+    check2:
+      command: check2
+      group:   filers            # check2 will run at 13:17:00
+
+    check3:
+      command: check3
+      group:   filers            # check3 will run at 13:19:00
+
+Splay can be auto-calculated.  A value of 0 (or a negative value) for
+a group splay will cause NLMA to determine the smallest check interval
+of all checks in the group, and then calculate an appropriate splay
+value so that all checks in the group will be run in that time window.
+
+For example, if a test group contains 15 checks, running at a mix of
+intervals ranging from 5 minutes to 20 minutes, the automatic splay
+would be 20 seconds, and all 15 checks would be initially scheduled
+to run within 5 minutes.
+
+Splay goes a long way to handle regular restarts, but constantly
+restarting NLMA may lead to some checks never being run.  The solution
+to this is decidedly low-tech: don't restart often, and use freshness
+thresholds wisely.
 
 =head1 SIGNAL HANDLING
 

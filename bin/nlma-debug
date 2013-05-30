@@ -69,6 +69,7 @@ sub format_exit
 	$default ||= "-";
 	return "SIGKILL" if $check->{sigkill};
 	return "SIGTERM" if $check->{sigterm};
+	return "PENDING" if $check->{exit_status} < 0;
 
 	my $rc = $check->{exit_status};
 	return "$rc ($STATUS[$rc])" if defined($rc) and exists $STATUS[$rc];
@@ -88,6 +89,8 @@ sub row_color
 	my ($check) = @_;
 	return "blue"    if $check->{sigkill};
 	return "magenta" if $check->{sigterm};
+	return "cyan"    if $check->{exit_status} < 0 and $check->{pid} > 0;
+	return "white"   if $check->{exit_status} < 0;
 	return $COLORS[$check->{exit_status}];
 }
 
@@ -110,7 +113,9 @@ sub latest_dump
 GetOptions(\%OPTIONS,qw/
 	schedule|s
 	full|f
+	host|H=s
 	match|m=s
+	group|g=s
 
 	help|h|?
 	dump|D
@@ -121,12 +126,27 @@ pod2usage(1) if $OPTIONS{help};
 $OPTIONS{schedule} = 1 unless $OPTIONS{full};
 
 my ($conf, $checks) = Load($OPTIONS{last} ? latest_dump : do { local $/; <> });
-my @filtered = $OPTIONS{match}
-	? grep { $_->{name} =~ m/$OPTIONS{match}/ } @$checks
-	: @$checks;
+my @filtered = @$checks;
+
+my @query = ();
+if ($OPTIONS{match}) {
+	@filtered = grep { $_->{name} =~ m/$OPTIONS{match}/ } @filtered;
+	$query[0] = ".*";
+	$query[1] = $OPTIONS{match};
+}
+if ($OPTIONS{host}) {
+	@filtered = grep { $_->{hostname} =~ m/$OPTIONS{host}/ } @filtered;
+	$query[0] = $OPTIONS{host};
+}
+if ($OPTIONS{group}) {
+	my %Q = map { $_ => 1 } split /\s*,\s*/, $OPTIONS{group};
+	@filtered = grep { $Q{$_->{group}} } @filtered
+		unless $OPTIONS{group} eq 'all';
+}
+my $filter = (@query ? "$query[0]/$query[1]" : "");
 
 if (!@filtered) {
-	print "No checks found".($OPTIONS{match} ? " matching m/$OPTIONS{match}/" : "")."\n";
+	print "No checks found".($filter ? " matching $filter" : "")."\n";
 	exit 1;
 }
 
@@ -134,21 +154,25 @@ if ($OPTIONS{schedule}) {
 	my $v = $conf->{version} || "2.2";
 	print "MEMORY DUMP from ".format_time($conf->{lastdump}, "<NO DATE IN FILE>")."\n";
 	print(("-" x 76)."\n");
-	print "NLMA v$v\n";
+	print "NLMA v$v running on $conf->{hostname}\n";
 	if (defined $conf->{startup}) {
 		print "  started ".format_time($conf->{startup})."\n";
 		print "  uptime  ".format_uptime(time - $conf->{startup})."\n";
 	}
-	if ($OPTIONS{match}) {
-		print "  filter  /$OPTIONS{match}/\n";
+	if ($filter) {
+		print "  filter  $filter\n";
 	}
 	print "  showing ".@filtered."/".@$checks." checks\n";
 	print "\n";
 
-	my $table = Nagios::Agent::Table->new(['Name','Last Run','Duration','Status', 'Next Run', 'PID']);
+	my $table = Nagios::Agent::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID']);
 	for (@filtered) {
+		my ($host) = $_->{hostname};
+		$host = "<localhost>" if $host eq $conf->{hostname};
 		$table->append({
+			Host       => $host,
 			Name       => $_->{name},
+			Group      => $_->{group},
 			'Last Run' => format_time($_->{started_at}, "-"),
 			'Duration' => format_age($_->{duration},    "-"),
 			Status     => format_exit($_,               "-"),
@@ -181,6 +205,8 @@ if ($OPTIONS{full}) {
 			print "    currently running (as of ".format_time($conf->{lastdump}, "dump").")\n";
 			print "    started at ".format_time($check->{started_at}, "???")."\n";
 		}
+		print "\n";
+		print "    scheduling group is `$check->{group}`\n";
 		print "\n";
 		print "    checks every ".format_age($check->{interval})." normally, with a ".format_age($check->{timeout})." timeout.\n";
 		if ($check->{attempts} > 1) {
@@ -247,6 +273,8 @@ nlma-debug -ls
 
 nlma-debug -l -m 'nlma_proc_.*'
 
+nlm-debug -l -H toshiba -m req_per_min
+
 =head1 DESCRIPTION
 
 When signalled via B<kill -USR1>, B<nlma(1)> will dump its entire internal state
@@ -296,6 +324,21 @@ This is the default mode.
 Only show data for checks that match I<PATTERN>, a Perl-compatible regular
 expression.  Thanks to shell expansion, you probably want to always quote this
 argument.
+
+Can be combined with B<-H> for a cumulative effect.
+
+=item B<-H>, B<--host> PATTERN
+
+Only show data for checks submitted on behalf of I<PATTERN>.  This is useful for
+aggregating hosts (like mon01.*) that run checks on behalf of many other hosts,
+and submit them all via NLMA.
+
+Can be combined with B<-m> for a cumulative effect.
+
+=item B<-g>, B<--groups> LIST,OF,GROUPS
+
+Limit output to checks in the named groups.  If you don't know why you need this,
+you probably don't need this.
 
 =item B<-l>, B<--last>
 
