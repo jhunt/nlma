@@ -352,8 +352,26 @@ processes (like check plugins and send_nsca).  Defaults to
 When nlma starts up, it will try to schedule all defined checks to run
 as quickly as possible.  The I<startup splay> influences this behavior,
 and specifies an amount of time (in seconds) to spread each check out.
-The default value of 15 seconds causes nlma to schedule each initial
-check run 15 seconds apart.
+
+The default value of 0 seconds causes nlma to calculate the appropriate
+splay for scheduling, based on group and minimum interval.
+
+=item B<groups>
+
+Checks are scheduled according to the policy of their groups, or the
+default policy.  This configuration subtree manages group-specific
+settings.
+
+It supports the following keys:
+
+=over
+
+=item B<splay>
+
+The splay value for scheduling checks in this group.  If not specified,
+the value is inherited from the global B<startup_splay> setting.
+
+=back
 
 =back
 
