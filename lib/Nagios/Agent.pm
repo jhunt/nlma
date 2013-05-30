@@ -117,7 +117,9 @@ sub run_check
 		return 1; # return 1, so the lock doesn't get undone, as this is not an error running the check,
 		          # but rather desired behavior
 	} else {
-		Nagios::Agent::lock($check->{lock}, locked_by => $check->{name}) if $check->{lock};
+		if($check->{lock}) {
+			Nagios::Agent::lock($check->{lock}, locked_by => $check->{name});
+		}
 	}
 
 	my ($readfd, $writefd);
@@ -587,6 +589,7 @@ sub dump_config
 	INFO("dumping config+checks to $file");
 
 	$config->{lastdump} = gettimeofday;
+	$config->{locks} = \%LOCKS;
 
 	my $fh;
 	if (open $fh, ">$file") {
@@ -961,7 +964,9 @@ sub lock
 sub unlock
 {
 	my ($key) = @_;
-	delete $LOCKS{$key};
+	return unless $key;
+	$LOCKS{$key}{locked} = 0;
+	$LOCKS{$key}{unlocked_at} = time;
 }
 
 sub locked

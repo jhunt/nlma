@@ -84,6 +84,18 @@ sub format_pid
 	return $pid;
 }
 
+sub format_lock
+{
+	my ($key, $locks, $default) = @_;
+	$default ||= "-";
+	return $default unless $key;
+	if (exists $locks->{$key} && $locks->{$key}{locked}) {
+		return $locks->{$key}{locked_by};
+	} else {
+		return $default;
+	}
+}
+
 sub row_color
 {
 	my ($check) = @_;
@@ -113,6 +125,7 @@ sub latest_dump
 GetOptions(\%OPTIONS,qw/
 	schedule|s
 	full|f
+	locks|L
 	host|H=s
 	match|m=s
 	group|g=s
@@ -123,7 +136,7 @@ GetOptions(\%OPTIONS,qw/
 /) or pod2usage(2);
 pod2usage(1) if $OPTIONS{help};
 
-$OPTIONS{schedule} = 1 unless $OPTIONS{full};
+$OPTIONS{schedule} = 1 unless ($OPTIONS{full} || $OPTIONS{locks});
 
 my ($conf, $checks) = Load($OPTIONS{last} ? latest_dump : do { local $/; <> });
 my @filtered = @$checks;
@@ -165,19 +178,20 @@ if ($OPTIONS{schedule}) {
 	print "  showing ".@filtered."/".@$checks." checks\n";
 	print "\n";
 
-	my $table = Nagios::Agent::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID']);
+	my $table = Nagios::Agent::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID', "Locked By"]);
 	for (@filtered) {
 		my ($host) = $_->{hostname};
 		$host = "<localhost>" if $host eq $conf->{hostname};
 		$table->append({
-			Host       => $host,
-			Name       => $_->{name},
-			Group      => $_->{group},
-			'Last Run' => format_time($_->{started_at}, "-"),
-			'Duration' => format_age($_->{duration},    "-"),
-			Status     => format_exit($_,               "-"),
-			'Next Run' => format_time($_->{next_run},   "-"),
-			PID        => format_pid($_->{pid},         "-"),
+			Host        => $host,
+			Name        => $_->{name},
+			Group       => $_->{group},
+			'Last Run'  => format_time($_->{started_at},           "-"),
+			'Duration'  => format_age($_->{duration},              "-"),
+			Status      => format_exit($_,                         "-"),
+			'Next Run'  => format_time($_->{next_run},             "-"),
+			PID         => format_pid($_->{pid},                   "-"),
+			'Locked By' => format_lock($_->{lock}, $conf->{locks}, "-"),
 		}, row_color($_));
 	}
 	if ($OPTIONS{dump}) {
@@ -189,6 +203,21 @@ if ($OPTIONS{schedule}) {
 	exit 0;
 }
 
+if ($OPTIONS{locks}) {
+	for my $key (sort keys %{$conf->{locks}}) {
+		my $lock = $conf->{locks}{$key};
+		my $name = "==[ $key ]===";
+		$name .= "=" x (80 - length($name));
+		print "$name\n";
+		print "\n";
+		my $locked = $lock->{locked} ? "locked" : "unlocked";
+		print "  is currently $locked\n";
+		print "  last locked at ".format_time($lock->{locked_at})." by $lock->{locked_by}\n";
+		print "  last unlocked at ".format_time($lock->{unlocked_at})."\n";
+		print "\n";
+	}
+
+}
 
 if ($OPTIONS{full}) {
 	for my $check (@filtered) {
@@ -236,8 +265,21 @@ if ($OPTIONS{full}) {
 			print "    SIGTERM deadline is at ".format_time($check->{soft_stop})."\n";
 			print "    SIGKILL deadline is at ".format_time($check->{hard_stop})."\n";
 		}
-		print "\n";
 
+		if ($check->{lock}) {
+			print "    this check uses '$check->{lock}' for concurrency locking\n";
+
+			if ($conf->{locks}{$check->{lock}}{locked}) {
+				print "    this check is currently locked by the '"
+					.$conf->{locks}{$check->{lock}}{locked_by}."' check\n";
+			} else {
+				print "    this check is not currently locked\n";
+			}
+		} else {
+			print "    this check does not use concurrency locking\n";
+		}
+
+		print "\n";
 		print "  LAST RUN:\n";
 		if ($check->{pid} <= 0) {
 			print "    SIGTERM'd?    ".($check->{sigterm} ? "yes" : "no")."\n";
@@ -260,6 +302,8 @@ if ($OPTIONS{full}) {
 		print "\n\n";
 	}
 }
+
+
 
 =head1 NAME
 
@@ -345,6 +389,10 @@ you probably don't need this.
 Instead of reading the dump file from standard input, or an explicit file,
 instruct nlma-debug to look through /var/tmp/nlma.*.yml, looking for the most
 recently-created dump file.
+
+=item B<-L>, B<--locks>
+
+Perform a full dump of the current lock table for introspection.
 
 =item B<-D>, B<--dump>
 
