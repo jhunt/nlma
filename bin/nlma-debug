@@ -115,6 +115,7 @@ GetOptions(\%OPTIONS,qw/
 	full|f
 	host|H=s
 	match|m=s
+	group|g=s
 
 	help|h|?
 	dump|D
@@ -136,6 +137,11 @@ if ($OPTIONS{match}) {
 if ($OPTIONS{host}) {
 	@filtered = grep { $_->{hostname} =~ m/$OPTIONS{host}/ } @filtered;
 	$query[0] = $OPTIONS{host};
+}
+if ($OPTIONS{group}) {
+	my %Q = map { $_ => 1 } split /\s*,\s*/, $OPTIONS{group};
+	@filtered = grep { $Q{$_->{group}} } @filtered
+		unless $OPTIONS{group} eq 'all';
 }
 my $filter = (@query ? "$query[0]/$query[1]" : "");
 
@@ -159,13 +165,14 @@ if ($OPTIONS{schedule}) {
 	print "  showing ".@filtered."/".@$checks." checks\n";
 	print "\n";
 
-	my $table = Nagios::Agent::Table->new(['Host', 'Name','Last Run','Duration','Status', 'Next Run', 'PID']);
+	my $table = Nagios::Agent::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID']);
 	for (@filtered) {
 		my ($host) = $_->{hostname};
 		$host = "<localhost>" if $host eq $conf->{hostname};
 		$table->append({
 			Host       => $host,
 			Name       => $_->{name},
+			Group      => $_->{group},
 			'Last Run' => format_time($_->{started_at}, "-"),
 			'Duration' => format_age($_->{duration},    "-"),
 			Status     => format_exit($_,               "-"),
@@ -198,6 +205,8 @@ if ($OPTIONS{full}) {
 			print "    currently running (as of ".format_time($conf->{lastdump}, "dump").")\n";
 			print "    started at ".format_time($check->{started_at}, "???")."\n";
 		}
+		print "\n";
+		print "    scheduling group is `$check->{group}`\n";
 		print "\n";
 		print "    checks every ".format_age($check->{interval})." normally, with a ".format_age($check->{timeout})." timeout.\n";
 		if ($check->{attempts} > 1) {
@@ -325,6 +334,11 @@ aggregating hosts (like mon01.*) that run checks on behalf of many other hosts,
 and submit them all via NLMA.
 
 Can be combined with B<-m> for a cumulative effect.
+
+=item B<-g>, B<--groups> LIST,OF,GROUPS
+
+Limit output to checks in the named groups.  If you don't know why you need this,
+you probably don't need this.
 
 =item B<-l>, B<--last>
 
