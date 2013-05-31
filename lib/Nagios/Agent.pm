@@ -118,6 +118,7 @@ sub run_check
 		          # but rather desired behavior
 	} else {
 		if($check->{lock}) {
+			INFO("locking $check->{lock} for execution of $check->{name}");
 			Nagios::Agent::lock($check->{lock}, locked_by => $check->{name});
 		}
 	}
@@ -919,7 +920,10 @@ sub start
 
 				if ($check->{next_run} < $now) {
 					DEBUG("check $check->{name} next run $check->{next_run} < $now");
-					run_check($check, $config->{plugin_root});
+					if (!run_check($check, $config->{plugin_root})) {
+						# Remove locks if we failed to run the check
+						unlock($check->{lock}) if $check->{lock};
+					}
 				}
 			}
 		}
@@ -949,11 +953,13 @@ sub lock
 	my ($key, %opts) = @_;
 	return 0 unless $key;
 	if (! locked($key)) {
-		$LOCKS{$key} = {};
-		if (%opts) {
-			$LOCKS{$key} = {map { $_ => $opts{$_} } keys %opts};
+		if (!exists $LOCKS{$key}) {
+			$LOCKS{$key} = {
+				%opts,
+				unlocked_at => -1,
+			};
 		}
-		$LOCKS{$key}{locked} = 1;
+		$LOCKS{$key}{locked}    = 1;
 		$LOCKS{$key}{locked_at} = time;
 		return 1;
 	} else {
