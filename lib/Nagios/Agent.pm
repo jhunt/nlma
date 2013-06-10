@@ -855,7 +855,7 @@ sub submit_oob
 
 	my $check = {
 		hostname    => $alert->{host},
-		name        => $alert->{service},
+		name        => "oob_".$alert->{service},
 		exit_status => $alert->{code},
 		output      => "CLI: $alert->{output} (submitted via $config->{hostname})",
 	};
