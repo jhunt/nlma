@@ -58,6 +58,21 @@ reload()
 	return $RETVAL
 }
 
+dump()
+{
+	echo -n $"Dumping $NPOLL  "
+	killproc $BINDIR/$NPOLL -USR1
+	RETVAL=$?
+	echo
+
+	if [[ "$RETVAL" = 0 ]]; then
+		FILE=$(ls -1t /var/tmp/nlma.*.yml 2>/dev/null | head -n1)
+		echo "Dumped NLMA state to $FILE"
+	fi
+
+	return $RETVAL
+}
+
 case "$1" in
 	start)
 		start
@@ -72,10 +87,13 @@ case "$1" in
 	reload)
 		reload
 		;;
+	dump)
+		dump
+		;;
 	status)
 		status $BINDIR/$NPOLL
 		;;
 	*)
-		echo $"Usage: $0 {start|stop|restart|reload|status}"
+		echo $"Usage: $0 {start|stop|restart|reload|dump|status}"
 		exit 1
 esac

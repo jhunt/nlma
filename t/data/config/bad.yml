@@ -11,7 +11,6 @@ parents:
 send_nsca: /opt/other/send_nsca -c /etc/nsca.cfg
 
 timeout: 75
-on_timeout: warning
 interval: 240
 startup_splay: 17
 
@@ -29,3 +28,10 @@ checkin:
 
 errlog: /fixme/remove
 
+---
+check_stuff:
+  command: check_stuff
+
+check_other_stuff:
+- bork:
+  command: check_other_stuff

@@ -52,7 +52,7 @@ use Nagios::Agent;
 		},
 		{ # update check1 with new intervals
 			name        => 'check1',
-			hostname    => 'box01',
+			hostname    => $old->[0]{hostname},    # unchanged
 			environment => 'staging',
 			command     => $old->[0]{command},     # unchanged
 			interval    => 60,
@@ -76,7 +76,7 @@ use Nagios::Agent;
 #	$old->[0]{started_at} = $old->[0]{ended_at} = $old->[0]{next_run}   = 42;
 	is_deeply($old->[0], {
 			name        => "check1",
-			hostname    => 'box01', # CHANGED
+			hostname    => 'localhost',
 			timeout     => 45,
 			pid         => -1,
 			interval    => 60, # CHANGED
@@ -120,6 +120,81 @@ use Nagios::Agent;
 			command     => 'check_stuff',
 			environment => 'default',
 		}, "check definition created for new check3");
+}
+
+{ # merge checks for the same check name, different hosts (ITM-2417)
+	my $NOW = time;
+
+	my $old = [
+		{
+			hostname => 'hosta',
+			name     => 'check1',
+			timeout  => 45,
+			pid      => -1,
+			interval => 300,
+			retry    => 60,
+			attempts => 1,
+			command  => 'check_stuff',
+			environment => 'default',
+
+			started_at => $NOW - 200,
+			ended_at   => $NOW - 200 + 5,
+			next_run   => $NOW + 100,
+		},
+		{
+			hostname => 'hostb',
+			name     => 'check1',
+			timeout  => 45,
+			pid      => -1,
+			interval => 300,
+			retry    => 60,
+			attempts => 1,
+			command  => 'check_stuff',
+			environment => 'default',
+
+			started_at => $NOW - 50,
+			ended_at   => $NOW - 200 + 5,
+			next_run   => $NOW - 200 + 300,
+		}
+	];
+
+	is(Nagios::Agent::merge_check_defs($old, $old), 0, "merge_check_defs returns 0");
+
+	is_deeply($old->[0], {
+			name        => "check1",
+			hostname    => 'hosta',
+			timeout     => 45,
+			pid         => -1,
+			interval    => 300,
+			retry       => 60,
+			attempts    =>  1,
+			command     => 'check_stuff',
+			environment => 'default',
+
+			# check is rescheduled
+			started_at  => $NOW - 200,      # same
+			ended_at    => $NOW - 200 + 5,  # same
+			next_run    => $NOW - 200 + 300, # reschedule with existing interval
+		}, "check definitions merged for hosta/check1");
+
+	is_deeply($old->[1], {
+			name        => "check1",
+			hostname    => 'hostb',
+			timeout     => 45,
+			pid         => -1,
+			interval    => 300,
+			retry       => 60,
+			attempts    =>  1,
+			command     => 'check_stuff',
+			environment => 'default',
+
+			# check is rescheduled
+			started_at  => $NOW - 50,      # same
+			ended_at    => $NOW - 200 + 5,  # same
+			next_run    => $NOW - 50 + 300, # reschedule with existing interval
+		}, "check definitions merged for check2");
+
+	is(@$old, 2, "Didn't lost any checks");
 }
 
 done_testing;

@@ -1,0 +1,409 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long qw(GetOptions);
+Getopt::Long::Configure('bundling');
+use Data::Dumper;
+use YAML::Syck;
+use Pod::Usage;
+use Nagios::Agent::Table;
+use POSIX qw/strftime/;
+
+my (@STATUS, @COLORS, %OPTIONS);
+
+sub format_decimal
+{
+	my ($fmt, @args) = @_;
+	(my $s = sprintf($fmt, @args)) =~ s/\.0+([a-z])/$1/g;
+	return $s;
+}
+
+sub format_age
+{
+	my ($age, $default) = @_;
+	$default ||= "-";
+	return $default unless defined $age;
+	return format_decimal("%0.2fms", $age * 1000) if $age < 1;
+	return format_decimal("%0.2fs",  $age)        if $age < 90;
+	return format_decimal("%0.2fm",  $age / 60)   if $age < 5400; # 1.5 hours
+	return format_decimal("%0.2fh",  $age / 3600);
+}
+
+sub format_uptime
+{
+	my ($s) = @_;
+
+	my ($d, $h, $m) = (0,0,0);
+	if ($s >= 86400) {
+		$d = int($s / 86400);
+		$s %= 86400;
+	}
+	if ($s >= 3600) {
+		$h = int($h / 3600);
+		$s %= 3600;
+	}
+	if ($s > 60) {
+		$m = int($m / 60);
+		$s %= 60;
+	}
+	return sprintf("%id %ih %im %is", $d, $h, $m, $s);
+}
+
+sub format_time
+{
+	my ($time, $default) = @_;
+	$default ||= "-";
+	return $default unless defined $time and $time > 0;
+	return $default if $time < 0;
+
+	my ($s, $ms) = split /\./, $time;
+	my $date = strftime("%Y-%m-%d %H:%M:%S", localtime($s));
+	return "$date.".substr(sprintf("%06i", $ms || 0), 0, 4);
+}
+
+sub format_exit
+{
+	my ($check, $default) = @_;
+	$default ||= "-";
+	return "SIGKILL" if $check->{sigkill};
+	return "SIGTERM" if $check->{sigterm};
+	return "PENDING" if $check->{exit_status} < 0;
+
+	my $rc = $check->{exit_status};
+	return "$rc ($STATUS[$rc])" if defined($rc) and exists $STATUS[$rc];
+	return $default;
+}
+
+sub format_pid
+{
+	my ($pid, $default) = @_;
+	$default ||= "-";
+	return $default if !defined $pid || $pid < 0;
+	return $pid;
+}
+
+sub format_lock
+{
+	my ($key, $locks, $default) = @_;
+	$default ||= "-";
+	return $default unless $key;
+	if (exists $locks->{$key} && $locks->{$key}{locked}) {
+		return $locks->{$key}{locked_by};
+	} else {
+		return $default;
+	}
+}
+
+sub row_color
+{
+	my ($check) = @_;
+	return "blue"    if $check->{sigkill};
+	return "magenta" if $check->{sigterm};
+	return "cyan"    if $check->{exit_status} < 0 and $check->{pid} > 0;
+	return "white"   if $check->{exit_status} < 0;
+	return $COLORS[$check->{exit_status}];
+}
+
+sub latest_dump
+{
+	my @files = sort glob "/var/tmp/nlma.*.*.yml";
+	die "No dump files found in /var/tmp; do you need to `sudo service nlma dump'?\n"
+		unless @files;
+	my $file = pop @files;
+	open my $fh, "<", $file or die "Failed to read dump file $file: $!\n";
+	my $raw = do { local $/; <$fh> };
+	close $fh;
+	return $raw;
+}
+
+
+@STATUS = qw/OK WARN CRIT UNKN/;
+@COLORS = qw/white bright_yellow bright_red/;
+%OPTIONS = ();
+GetOptions(\%OPTIONS,qw/
+	schedule|s
+	full|f
+	locks|L
+	host|H=s
+	match|m=s
+	group|g=s
+
+	help|h|?
+	dump|D
+	last|l
+/) or pod2usage(2);
+pod2usage(1) if $OPTIONS{help};
+
+$OPTIONS{schedule} = 1 unless ($OPTIONS{full} || $OPTIONS{locks});
+
+my ($conf, $checks) = Load($OPTIONS{last} ? latest_dump : do { local $/; <> });
+my @filtered = @$checks;
+
+my @query = ();
+if ($OPTIONS{match}) {
+	@filtered = grep { $_->{name} =~ m/$OPTIONS{match}/ } @filtered;
+	$query[0] = ".*";
+	$query[1] = $OPTIONS{match};
+}
+if ($OPTIONS{host}) {
+	@filtered = grep { $_->{hostname} =~ m/$OPTIONS{host}/ } @filtered;
+	$query[0] = $OPTIONS{host};
+}
+if ($OPTIONS{group}) {
+	my %Q = map { $_ => 1 } split /\s*,\s*/, $OPTIONS{group};
+	@filtered = grep { $Q{$_->{group}} } @filtered
+		unless $OPTIONS{group} eq 'all';
+}
+my $filter = (@query ? "$query[0]/$query[1]" : "");
+
+if (!@filtered) {
+	print "No checks found".($filter ? " matching $filter" : "")."\n";
+	exit 1;
+}
+
+if ($OPTIONS{schedule}) {
+	my $v = $conf->{version} || "2.2";
+	print "MEMORY DUMP from ".format_time($conf->{lastdump}, "<NO DATE IN FILE>")."\n";
+	print(("-" x 76)."\n");
+	print "NLMA v$v running on $conf->{hostname}\n";
+	if (defined $conf->{startup}) {
+		print "  started ".format_time($conf->{startup})."\n";
+		print "  uptime  ".format_uptime(time - $conf->{startup})."\n";
+	}
+	if ($filter) {
+		print "  filter  $filter\n";
+	}
+	print "  showing ".@filtered."/".@$checks." checks\n";
+	print "\n";
+
+	my $table = Nagios::Agent::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID', "Locked By"]);
+	for (@filtered) {
+		my ($host) = $_->{hostname};
+		$host = "<localhost>" if $host eq $conf->{hostname};
+		$table->append({
+			Host        => $host,
+			Name        => $_->{name},
+			Group       => $_->{group},
+			'Last Run'  => format_time($_->{started_at},           "-"),
+			'Duration'  => format_age($_->{duration},              "-"),
+			Status      => format_exit($_,                         "-"),
+			'Next Run'  => format_time($_->{next_run},             "-"),
+			PID         => format_pid($_->{pid},                   "-"),
+			'Locked By' => format_lock($_->{lock}, $conf->{locks}, "-"),
+		}, row_color($_));
+	}
+	if ($OPTIONS{dump}) {
+		$table->dump;
+		exit 0;
+	}
+
+	$table->print;
+	exit 0;
+}
+
+if ($OPTIONS{locks}) {
+	for my $key (sort keys %{$conf->{locks}}) {
+		my $lock = $conf->{locks}{$key};
+		my $name = "==[ $key ]===";
+		$name .= "=" x (80 - length($name));
+		print "$name\n";
+		print "\n";
+		my $locked = $lock->{locked} ? "locked" : "unlocked";
+		print "  is currently $locked\n";
+		print "  last locked at ".format_time($lock->{locked_at})." by $lock->{locked_by}\n";
+		print "  last unlocked at ".format_time($lock->{unlocked_at})."\n";
+		print "\n";
+	}
+
+}
+
+if ($OPTIONS{full}) {
+	for my $check (@filtered) {
+
+		my $name = "===[ $check->{name} ]===";
+		$name .= "=" x (80 - length($name));
+		print "$name\n";
+		print "\n";
+		print "  SCHEDULING:\n";
+		if ($check->{pid} < 0) {
+			print "    last ran @ ".format_time($check->{started_at}, "-")." (for ".format_age($check->{duration}, "unknown duration").")\n";
+			print "    next run @ ".format_time($check->{next_run})." (".format_age($check->{next_run} - $check->{started_at}, "???s")." later)\n";
+		} else {
+			print "    currently running (as of ".format_time($conf->{lastdump}, "dump").")\n";
+			print "    started at ".format_time($check->{started_at}, "???")."\n";
+		}
+		print "\n";
+		print "    scheduling group is `$check->{group}`\n";
+		print "\n";
+		print "    checks every ".format_age($check->{interval})." normally, with a ".format_age($check->{timeout})." timeout.\n";
+		if ($check->{attempts} > 1) {
+			my $confirm = $check->{attempts}-1;
+			print "    confirms problem $confirm more time".($confirm > 1 ? "s" : "")." every ".format_age($check->{retry})."\n";
+		} else {
+			print "    no additional confirmation checks are performed (one-shot)\n";
+		}
+		print "\n";
+		print "    attempts: $check->{current}/$check->{attempts}";
+			print " (".($check->{is_soft_state} ? "SOFT" : "HARD")." state)\n";
+		print "\n";
+
+		print "  CHECK INFORMATION:\n";
+		print "    command is: `$check->{command}`\n";
+		print "    results submit to '$check->{environment}' servers:\n";
+		for (@{$conf->{parents}{$check->{environment}}}) {
+			print "      - $_\n";
+		}
+		print "\n";
+		print "  EXECUTION:\n";
+		if ($check->{pid} <= 0) {
+			print "    this check was not running when this report was generated\n";
+		} else {
+			print "    this check *was* running when this report was generated\n";
+			print "    PID: $check->{pid}\n";
+			print "    SIGTERM deadline is at ".format_time($check->{soft_stop})."\n";
+			print "    SIGKILL deadline is at ".format_time($check->{hard_stop})."\n";
+		}
+
+		if ($check->{lock}) {
+			print "    this check uses '$check->{lock}' for concurrency locking\n";
+
+			if ($conf->{locks}{$check->{lock}}{locked}) {
+				print "    this check is currently locked by the '"
+					.$conf->{locks}{$check->{lock}}{locked_by}."' check\n";
+			} else {
+				print "    this check is not currently locked\n";
+			}
+		} else {
+			print "    this check does not use concurrency locking\n";
+		}
+
+		print "\n";
+		print "  LAST RUN:\n";
+		if ($check->{pid} <= 0) {
+			print "    SIGTERM'd?    ".($check->{sigterm} ? "yes" : "no")."\n";
+			print "    SIGKILL'd?    ".($check->{sigkill} ? "yes" : "no")."\n";
+			print "    exited        ".$check->{exit_status}." (".($STATUS[$check->{exit_status}] || "<unknown state>").")\n";
+			print "    transitioned  ".
+				($STATUS[$check->{last_state}] || "<unknown>").
+				" => ".
+				($STATUS[$check->{state}] || "<unknown>").
+				"\n";
+			print "\n";
+			print "    Output:\n";
+			print "    ".("-" x 72)."\n";
+			print "    $check->{output}\n";
+			print "    ".("-" x 72)."\n";
+		} else {
+			print "    this check was running when this report was generated\n";
+			print "    so there is no last-run data to be analyzed.\n";
+		}
+		print "\n\n";
+	}
+}
+
+
+
+=head1 NAME
+
+nlma-debug - Analyze NLMA Dump Files
+
+=head1 SYNOPSIS
+
+nlma-debug </var/tmp/nlma.XXXXXXX.yml
+
+nlma-debug -ls
+
+nlma-debug -l -m 'nlma_proc_.*'
+
+nlm-debug -l -H toshiba -m req_per_min
+
+=head1 DESCRIPTION
+
+When signalled via B<kill -USR1>, B<nlma(1)> will dump its entire internal state
+to a file in /var/tmp, named nlma.TIMESTAMP.MSEC.yml, where TIMESTAMP.MSEC is the
+current timestamp with millisecond resolution.
+
+nlma-debug parses this file and generates human-readable diagnostic output that
+explains what is/was going on inside of NLMA.
+
+By default, nlma-debug expects to read the dump file from standard input.  You can
+use shell redirection to satisfy this behavior, or just pass the file name on the
+command-line.  Alternatively, you can use B<-l> to make nlma-debug go fetch the
+latest dump file from /var/tmp.
+
+There are two diagnostic modes supported currently: schedule (default) and full.
+
+The B<schedule> mode shows a succinct list of all configured checks, when they last
+ran, what their exit codes were, and when they are scheduled to be run next.
+
+The B<full> mode shows a more verbose list of all configured checks, and includes
+all of the pertinent information that NLMA has about each.  This includes schedules,
+previous runs, current run data (i.e. PID) and retry logic descriptions.
+
+Keep in mind that each dump file is a snapshot in time, so 'next run' data should
+always be interpreted as relative to then, not now.
+
+You can control what checks nlma-debug actually reports for via the B<-m> match
+flag, which takes a Perl-compatible regular expression that specifies which checks
+should be shown.
+
+=head1 OPTIONS
+
+=over
+
+=item B<-f>, B<--full>
+
+Show full diagnostic output.  This is exhaustive and definitive, but verbose.
+
+=item B<-s>, B<--schedule>
+
+Print information related to scheduling, including times and durations.
+
+This is the default mode.
+
+=item B<-m>, B<--match> PATTERN
+
+Only show data for checks that match I<PATTERN>, a Perl-compatible regular
+expression.  Thanks to shell expansion, you probably want to always quote this
+argument.
+
+Can be combined with B<-H> for a cumulative effect.
+
+=item B<-H>, B<--host> PATTERN
+
+Only show data for checks submitted on behalf of I<PATTERN>.  This is useful for
+aggregating hosts (like mon01.*) that run checks on behalf of many other hosts,
+and submit them all via NLMA.
+
+Can be combined with B<-m> for a cumulative effect.
+
+=item B<-g>, B<--groups> LIST,OF,GROUPS
+
+Limit output to checks in the named groups.  If you don't know why you need this,
+you probably don't need this.
+
+=item B<-l>, B<--last>
+
+Instead of reading the dump file from standard input, or an explicit file,
+instruct nlma-debug to look through /var/tmp/nlma.*.yml, looking for the most
+recently-created dump file.
+
+=item B<-L>, B<--locks>
+
+Perform a full dump of the current lock table for introspection.
+
+=item B<-D>, B<--dump>
+
+Dump the schedule data as a pipe-delimited set of fields.  This only makes sense
+with B<--schedule>.
+
+=back
+
+=head1 AUTHOR
+
+Written by Dan Molik <dmolik@synacor.com>
+and James Hunt <jhunt@synacor.com>
+
+=cut
