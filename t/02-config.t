@@ -16,8 +16,9 @@ use Sys::Hostname qw(hostname);
 	is($config->{send_nsca}, "/usr/bin/send_nsca -c /etc/icinga/send_nsca.cfg", "<send_nsca> default");
 	is($config->{timeout},   30, "<timeout> default");
 	is($config->{interval},  300, "<interval> default");
-	is($config->{startup_splay}, 15, "<startup_splay> default");
+	is($config->{startup_splay}, 0, "<startup_splay> default");
 	is($config->{dump},      "/var/tmp", "<dump> default");
+	is($config->{on_timeout}, "CRITICAL"),
 
 	is_deeply($config->{log}, {
 			level => 'error',
@@ -44,6 +45,7 @@ use Sys::Hostname qw(hostname);
 	is($config->{interval},  240, "<interval> override");
 	is($config->{startup_splay}, 17, "<startup_splay> override");
 	is($config->{dump},      "/usr/share", "<dump> override");
+	is($config->{on_timeout}, "WARNING"),
 
 	is_deeply($config->{log}, {
 			level => 'info',
@@ -59,6 +61,16 @@ use Sys::Hostname qw(hostname);
 				'df02.example.com',
 			]
 		}, "<parents> override");
+}
+
+{ # Bad On-Timeout Value ('OK' not an acceptable state)
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad_ontimeout.yml');
+	is($config->{on_timeout}, "CRITICAL"),
+}
+
+{ # Bad On-Timeout Value (not a real state)
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad_ontimeout2.yml');
+	is($config->{on_timeout}, "CRITICAL"),
 }
 
 { # No default parents
@@ -107,6 +119,7 @@ use Sys::Hostname qw(hostname);
 	$check = $checks->[0];
 	is($check->{name}, "check1", "<name> set properly");
 	is($check->{timeout}, $config->{timeout}, "<timeout> default");
+	is($check->{on_timeout}, $config->{on_timeout}, "<on_timeout> default");
 	is($check->{interval}, $config->{interval}, "<interval> default");
 	is($check->{attempts}, 1, "<attempts> default");
 	is($check->{retry}, 60, "<retry> default");
@@ -205,6 +218,13 @@ use Sys::Hostname qw(hostname);
 	cmp_set($config->{warnings}, [
 			q(Attempted to redefine 'cpu' check in inc/override.yml)
 		], "Check redefinition triggers warnings");
+}
+
+{ # Parsing a bad config should return (undef,undef)
+	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad.yml');
+
+	ok(!defined($config), "config result not defined for bad YAML");
+	ok(!defined($checks), "checks result not defined for bad YAML");
 }
 
 done_testing;

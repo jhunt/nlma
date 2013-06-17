@@ -1,0 +1,139 @@
+#!/usr/bin/perl
+
+use strict;
+
+use Getopt::Long;
+use POSIX;
+my $opts = {};
+my $pid;
+my $ALARMED = 0;
+my $TERMED  = 0;
+
+GetOptions($opts, 'timeout|t=i', 'debug|D', 'name|n=s');
+unless ($opts->{timeout}) {
+	print "No timeout defined. Cannot continue.\n";
+	usage();
+}
+
+unless ($opts->{name}) {
+	print "No name defined. Cannot continue.\n";
+	usage();
+}
+
+my @cmd_args = @ARGV;
+
+unless (@cmd_args) {
+	print "No command provided. Cannot continue.\n";
+	usage();
+}
+
+$pid = fork;
+if ($pid) {
+	local $SIG{ALRM} = sub {
+		$ALARMED = 1;
+	};
+	alarm $opts->{timeout};
+
+	DEBUG("Forked child on $pid. Parent is $$");
+	while (! waitpid($pid, POSIX::WNOHANG)) {
+		if ($TERMED) {
+			print STDERR "check $opts->{name} pid $pid exceeded hard_stop; sending SIGKILL\n";
+			kill(KILL => $pid);
+			waitpid($pid, POSIX::WNOHANG);
+			last;
+		} elsif ($ALARMED) {
+			print STDERR "check $opts->{name} pid $pid exceeded soft_stop; sending SIGTERM\n";
+			kill(TERM => $pid);
+			$TERMED = 1;
+		}
+
+		sleep 1;
+	}
+	my $rc = WIFEXITED($?) ? WEXITSTATUS($?) : 3;
+	print "check timed out (exceeded NLMA timeout)\n" if $ALARMED;
+	exit $rc;
+} elsif ($pid == 0) {
+	DEBUG("Child process executing '".join(" ", @cmd_args)."' under $opts->{timeout} second timeout.");
+	my $cmd = shift @cmd_args;
+	exec $cmd, @cmd_args;
+}
+
+sub DEBUG
+{
+	foreach (@_) {
+		chomp $_;
+		print STDERR $_ . "\n" if $opts->{debug};
+	}
+}
+
+sub usage
+{
+	print "Usage:\t$0 -t|--timeout <seconds> -n|--name <service_name> [-D|--debug] -- <check_command>\n";
+	print "\t\t-t|--timeout     Specify the number of seconds the check can run before timing it out.\n";
+	print "\t\t-n|--name        Specify the service name that this check is running for (to provide useful messaging if kill signalsare sent)\n";
+	print "\t\t-D|--debug       Enable debugging.\n";
+	print "\t\t<check_cmd>      Specify the exact check command to run (with full path) inside the timeout wrapper\n";
+	exit 3;
+}
+
+=head1 NAME
+
+B<nlma-timeout> - NLMA Helper Script for enforcing timeouts when running checks via sudo
+
+=head1 SYNOPSIS
+
+nlma-timeout [-D] -t <timeout> -n <servicename> -- <check_command>
+
+=head1 DESCRIPTION
+
+NLMA will execute checks under normal circumstances with a timeout. If it does not see the process complete
+before then, it will SIGTERM, and subsequently SIGKILL the process to ensure the check is reaped and
+re-scheduled. When running checks via sudo, nlma no longer has the permission to signal the process directly.
+Thus, the timeout script was written to wrap commands intended to run via sudo, so that they will be signaled
+and killed properly if the check command takes too long.
+
+In order to work properly, B<--> must  be specified before the check command for proper option/argument
+processing.
+
+=head1 OPTIONS
+
+=over
+
+=item -t|--timeout <seconds>
+
+Specify the number of seconds the check can run before timing it out. (Should be larger than the check-plugin
+timeout).
+
+=item -n|--name <service>
+
+Specify the service name to use for identifying who this check is running for. B<nlma-timeout> will print
+to STDERR when it has to signal processes, so that we can further audit what's timing out. To be more clear
+in these messages, B<nlma-timeout> will use this option to print out the service name that the current check
+is running for.
+
+=item -D|--debug
+
+Enable debug output for B<nlma-timeout>
+
+=item -- <check_command>
+
+-- separates the arguments for B<nlma-timeout> from the check command to run,  and its arguments. This is
+absolutely required for proper operation.
+
+=back
+
+=head1 EXAMPLES
+
+Run check_woot for the nlma_woot service with a 45 second timeout:
+
+  /usr/bin/nlma-timeout -t 45 -n nlma_woot -- check_woot
+
+=head1 AUTHOR
+
+nlma-timeout was written by Geoff Franks <gfranks@synacor.com>
+
+=head1 BUGS
+
+Like I would allow buggy software to get out? Please.
+
+=cut

@@ -1,10 +1,12 @@
 #!perl
 $ENV{PATH} = "/bin:/usr/bin";
 
+use strict;
 use Test::More;
 use Nagios::Agent;
 use Cwd;
 use POSIX ":sys_wait_h";
+use Test::MockModule;
 do "t/common.pl";
 
 plan skip_all => "Set TEST_ALL to enable run_check tests" unless TEST_ALL();
@@ -28,6 +30,37 @@ use Log::Log4perl qw(:easy);
 	is($checks->[0]{pid}, -1, "reap_check unsets PID");
 	is($checks->[0]{output}, "I am ".$ENV{USER}, "Output of check captured properly");
 	is($checks->[0]{stderr}, "this is standard error\n", "STDERR of check captured");
+}
+
+{ # Test locking
+	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/locks.yml");
+	ok(! Nagios::Agent::locked('locked_check'), "'locked_check' is not locked prior to running 'check_locks'");
+	ok(Nagios::Agent::run_check($checks->[0], getcwd."/t/checks"), "run_check returns true");
+	ok(Nagios::Agent::locked('locked_check'), "'locked_check' is locked by 'check_locks' check");
+
+	waitpid($checks->[0]{pid}, 0); my $rc = $?;
+	is(Nagios::Agent::reap_check($checks->[0], $rc), 0, "reap_check succeeded");
+	ok(! Nagios::Agent::locked('locked_check'), "'locked_check' is unlocked after 'check_locks' was reaped");
+}
+
+{ # test rescheduling of locked checks
+	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/locks.yml");
+	my $next_run = $checks->[0]{next_run};
+	is($checks->[0]{pid}, -1, "locked check does not have a pid prior to run_check");
+	Nagios::Agent::lock('locked_check', locked_by => 'FAKE_LOCK');
+	ok(Nagios::Agent::run_check($checks->[0], getcwd . "/t/checks"), "run_check returns true even when check is locked");
+	my $offset = $checks->[0]{next_run} - ($next_run + 5);
+	ok(($offset < 1 && $offset > 0), "locked check should be rescheduled out 5 seconds. interval was: $offset");
+	is($checks->[0]{pid}, -1, "locked check does not have a pid after run_check");
+	Nagios::Agent::unlock('locked_check');
+}
+
+{ # verify a failed check releases the lock
+	my $module = Test::MockModule->new('Nagios::Agent');
+	$module->mock('drop_privs', sub { return 0 });
+	ok(! Nagios::Agent::locked('failed_check'), "LOCK{failed_check} is not set prior to running failed check");
+	ok(! Nagios::Agent::runall("Nagios::Agent", "t/data/config/failed_check.yml"), "runall returns false on failed check");
+	ok(! Nagios::Agent::locked('failed_check'), "LOCK{failed_check} is not set after running a failed check");
 }
 
 ok(1);

@@ -16,7 +16,16 @@ use YAML;
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
 
-our $VERSION = '2.3';
+my %STATE_CODES = (
+	OK       => 0,
+	WARNING  => 1,
+	CRITICAL => 2,
+	UNKNOWN  => 3,
+);
+
+my %LOCKS = ();
+
+our $VERSION = '2.5';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -87,9 +96,9 @@ sub daemonize
 
 sub schedule_check
 {
-	my ($check) = @_;
+	my ($check, $interval) = @_;
 
-	my $interval = $check->{interval};
+	$interval ||= $check->{interval};
 	if ($check->{is_soft_state}) {
 		$interval = $check->{retry};
 	}
@@ -101,6 +110,18 @@ sub schedule_check
 sub run_check
 {
 	my ($check, $root) = @_;
+
+	if (locked($check->{lock})) {
+		INFO("check $check->{name} attempted to run, but is locked by " . keymaster()->{$check->{lock}}{locked_by});
+		schedule_check($check, 5);
+		return 1; # return 1, so the lock doesn't get undone, as this is not an error running the check,
+		          # but rather desired behavior
+	} else {
+		if($check->{lock}) {
+			INFO("locking $check->{lock} for execution of $check->{name}");
+			Nagios::Agent::lock($check->{lock}, locked_by => $check->{name});
+		}
+	}
 
 	my ($readfd, $writefd);
 	pipe $readfd, $writefd;
@@ -134,7 +155,7 @@ sub run_check
 	}
 
 	if ($check->{sudo}) {
-		$command = "/usr/bin/sudo -n -u $check->{sudo} $command";
+		$command = "/usr/bin/sudo -n -u $check->{sudo} /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
 	}
 
 	INFO("executing '$command' via /bin/sh -c");
@@ -185,6 +206,7 @@ sub run_check
 sub reap_check
 {
 	my ($check, $status) = @_;
+	unlock($check->{lock}) if $check->{lock};
 	$check->{ended_at} = gettimeofday;
 	$check->{duration} = $check->{ended_at} - $check->{started_at};
 	$check->{exit_status} = (WIFEXITED($status) ? WEXITSTATUS($status) : -1);
@@ -195,7 +217,7 @@ sub reap_check
 
 	if ($check->{sigkill} || $check->{sigterm}) {
 		$check->{output} = "check timed out (exceeded NLMA timeout)";
-		$check->{exit_status} = 3; # UNKNOWN
+		$check->{exit_status} = $STATE_CODES{$check->{on_timeout}};
 	}
 	$check->{output} = clean_check_output($check->{output});
 
@@ -217,7 +239,7 @@ sub reap_check
 	# if the plugin did not produce output to STDOUT, force
 	# an UNKNOWN state; something amy be wrong with the plugin...
 	if (!$check->{output}) {
-		$check->{exit_status} = 3; # UNKNOWN
+		$check->{exit_status} = $STATE_CODES{UNKNOWN};
 
 		# Use STDERR if it is available.
 		if ($check->{output} = clean_check_output($check->{stderr})) {
@@ -260,6 +282,15 @@ sub reap_check
 
 	DEBUG("check $check->{name} exited $check->{exit_status} with output '$check->{output}'");
 	return 0;
+}
+
+sub filter_checks
+{
+	my ($checks, $q) = @_;
+	$q = 'default' unless $q;
+	my %Q = map { $_ => 1 } split /\s*,\s*/, $q;
+	return $checks if $Q{all};
+	return [grep { $Q{$_->{group}} } @$checks];
 }
 
 sub send_nsca
@@ -329,7 +360,9 @@ sub parse_config
 	DEBUG("parsing configuration in $file");
 
 	my $yaml = slurp($file) or return undef;
-	my ($config, $checks) = Load($yaml);
+	my ($config, $checks) = eval { Load($yaml) } or return undef;
+	$config->{startup}  = gettimeofday unless $config->{startup};
+	$config->{version}  = $Nagios::Agent::VERSION;
 	$config->{warnings} = [];
 	$config->{errors}   = [];
 
@@ -364,6 +397,16 @@ sub parse_config
 		$config->{timeout} = 30;
 		DEBUG("no config for timeout: using default of $config->{timeout}s");
 	}
+	if (!exists $config->{on_timeout}) {
+		$config->{on_timeout} = "CRITICAL";
+		DEBUG("no config for on_timeout: using default of $config->{on_timeout}");
+	} else {
+		$config->{on_timeout} = uc($config->{on_timeout});
+		if ($config->{on_timeout} !~ m/^(WARNING|CRITICAL|UNKNOWN)/) {
+			WARN("$config->{on_timeout} is not an acceptable on_timeout value; falling back to default of 'CRITICAL'");
+			$config->{on_timeout} = "CRITICAL";
+		}
+	}
 	if (!exists $config->{interval}) {
 		$config->{interval} = 300;
 		DEBUG("no config for interval: using default of $config->{interval}s");
@@ -378,8 +421,8 @@ sub parse_config
 	$config->{dump} = abs_path($config->{dump});
 
 	if (!exists $config->{startup_splay}) {
-		$config->{startup_splay} = 15;
-		DEBUG("no config for startup_splay: using default of $config->{startup_splay} seconds");
+		$config->{startup_splay} = 0;
+		DEBUG("no config for startup_splay: using default (auto-calculate)");
 	}
 
 	$config->{log} = $config->{log} || {};
@@ -444,6 +487,8 @@ sub parse_config
 		delete $config->{include};
 	}
 
+	my $min_interval = 300;
+
 	my @list = ();
 	for my $cname (keys %$checks) {
 		DEBUG("parsed check definition for $cname");
@@ -455,6 +500,7 @@ sub parse_config
 
 		# Default timeout of 30s
 		$check->{timeout} = $check->{timeout} || $config->{timeout};
+		$check->{on_timeout} = $config->{on_timeout};
 
 		# Default interval of 5 minutes
 		$check->{interval} = $check->{interval} || $config->{interval};
@@ -468,10 +514,15 @@ sub parse_config
 		# Use default check environment
 		$check->{environment} = $check->{environment} || 'default';
 
+		# Use default check group
+		$check->{group} = $check->{group} || 'default';
+
 		# Use global host definition by default
 		$check->{hostname} = $check->{hostname} || $config->{hostname};
 
+		$cname = "$check->{group}/$cname";
 		DEBUG("$cname name is '$check->{name}'");
+		DEBUG("$cname group is '$check->{group}'");
 		DEBUG("$cname environment is '$check->{environment}'");
 		DEBUG("$cname command is '$check->{command}'");
 		DEBUG("$cname interval is $check->{interval} seconds");
@@ -486,15 +537,46 @@ sub parse_config
 		$check->{pid} = $check->{exit_status} = -1;
 		$check->{output} = "";
 
+		$min_interval = MIN($min_interval, $check->{interval});
+
 		push @list, $check;
+
+		$config->{groups}{$check->{group}}{name} = $check->{group}; # auto-vivify!
+		$config->{groups}{$check->{group}}{count}++;
+
+		if (!exists $config->{groups}{$check->{group}}{min_interval}) {
+			$config->{groups}{$check->{group}}{min_interval} = $check->{interval};
+		}
+
+		$config->{groups}{$check->{group}}{min_interval} = MIN(
+			$config->{groups}{$check->{group}}{min_interval},
+			$check->{interval}
+		);
 	}
 
 	# Stagger-schedule the first run, longest interval runs first
 	@list = sort { $b->{interval} <=> $a->{interval} } @list;
-	my $run_at = gettimeofday;
-	for my $check (@list) {
-		$check->{next_run} = $run_at;
-		$run_at += $config->{startup_splay};
+
+	my $START = gettimeofday;
+	for my $group (values %{$config->{groups}}) {
+		next unless $group->{count};
+
+		if (!exists $group->{splay}) {
+			$group->{splay} = $config->{startup_splay};
+			INFO("Falling back to default splay of $group->{splay} for $group->{name} checks");
+		}
+
+		if ($group->{splay} <= 0) {
+			$group->{splay} = $group->{min_interval} / $group->{count};
+			INFO("Auto-calculated splay for $group->{name} checks as $group->{count}/$group->{min_interval} == $group->{splay}");
+		}
+
+		my $run_at = $START;
+		for my $check (@list) {
+			next unless $check->{group} eq $group->{name};
+			$check->{next_run} = $run_at;
+			$run_at += $group->{splay};
+		}
 	}
 
 	return $config, \@list;
@@ -506,6 +588,9 @@ sub dump_config
 
 	my $file = "$config->{dump}/nlma.".gettimeofday().".yml";
 	INFO("dumping config+checks to $file");
+
+	$config->{lastdump} = gettimeofday;
+	$config->{locks} = \%LOCKS;
 
 	my $fh;
 	if (open $fh, ">$file") {
@@ -532,13 +617,13 @@ sub merge_check_defs
 		my $found = 0;
 		for my $oldcheck (@$old) {
 			next unless $oldcheck->{name} eq $newcheck->{name};
+			next unless $oldcheck->{hostname} eq $newcheck->{hostname};
 			$found = 1;
 
 			$oldcheck->{environment} = $newcheck->{environment};
 			$oldcheck->{command}  = $newcheck->{command};
 			$oldcheck->{interval} = $newcheck->{interval};
 			$oldcheck->{timeout}  = $newcheck->{timeout};
-			$oldcheck->{hostname} = $newcheck->{hostname};
 
 			DEBUG("updating check definition for $oldcheck->{name}");
 
@@ -619,12 +704,8 @@ sub waitall
 
 	do {
 		@pipes = grep { $_ } map { $_->{pipe} } @$checks;
-		DEBUG("Attempting to read from ".scalar @pipes." file descriptors");
-
 		@readable = IO::Select->new(@pipes)->can_read(0);
-		DEBUG("Found ".scalar @readable." readable file descriptors");
 		read_once($lookup{$_}) for @readable;
-
 	} while @readable;
 
 	# Then, we see if any child wants to terminate,
@@ -696,16 +777,16 @@ sub checkin
 	my $fake_check = {
 		hostname => $config->{hostname},
 		name => $config->{checkin}->{service},
-		exit_status => 0, # OK
+		exit_status => $STATE_CODES{OK},
 		output => "$nchecks checks run, ${avg_time}s average runtime",
 	};
 
 	if (@{$config->{errors}}) {
-		$fake_check->{exit_status} = 2; # ERROR
+		$fake_check->{exit_status} = $STATE_CODES{CRITICAL};
 		$fake_check->{output} = join('.  ', @{$config->{errors}});
 
 	} elsif (@{$config->{warnings}}) {
-		$fake_check->{exit_status} = 1; # WARNING
+		$fake_check->{exit_status} = $STATE_CODES{WARNING};
 		$fake_check->{output} = join('.  ', @{$config->{warnings}});
 	}
 
@@ -730,29 +811,16 @@ sub sigusr1_handler { $DUMPCONFIG = 1; }
 
 sub runall
 {
-	my ($class, $config_file, $noop) = @_;
-
-	$config_file = abs_path($config_file);
-	if (!-r $config_file) {
-		print STDERR "$config_file: $!\n";
-		exit 1;
-	}
-
-
-	my ($config, $checks) = parse_config($config_file);
-	print "nlma v$VERSION starting up (running as $config->{user}:$config->{group})\n";
-	drop_privs($config->{user}, $config->{group});
-
-	print "configured to run ",scalar @$checks," checks\n";
-	print "NOOP: running under --noop; not submitting check results.\n" if $noop;
-	print "\n";
+	my ($class, $config, $checks, $noop) = @_;
 
 	my %results = ();
-
 	for my $check (@$checks) {
 		print "$check->{name}\n";
 		print "   `$check->{command}`\n";
-		run_check($check, $config->{plugin_root});
+		if (! run_check($check, $config->{plugin_root})) {
+			# Remove locks if we failed to run the check
+			unlock($check->{lock}) if $check->{lock};
+		}
 		read_all($check);
 		waitpid($check->{pid}, 0);
 		reap_check($check, $?);
@@ -761,11 +829,7 @@ sub runall
 		push @{$results{$check->{environment}}}, $check;
 	}
 
-	if ($noop) {
-		print "NOOP: running under --noop; not submitting check results.\n";
-		return;
-	}
-
+	return if $noop;
 	for my $env (keys %results) {
 		for my $parent (@{$config->{parents}{$env}}) {
 			print "NSCA: $env \@$parent\n";
@@ -815,6 +879,10 @@ sub start
 	}
 
 	my ($config, $checks) = parse_config($config_file);
+	if (!$config) {
+		print STDERR "$config_file: bad configuration file (check YAML syntax)\n";
+		exit 1;
+	}
 
 	daemonize($config->{user}, $config->{group}, $config->{pid_file}) unless $foreground;
 	configure_syslog($config->{log}) unless $foreground;
@@ -835,13 +903,17 @@ sub start
 			INFO("SIGHUP caught; reconfiguring");
 			$RECONFIG = 0;
 			my ($newconfig, $newchecks) = parse_config($config_file);
+			if (!$newconfig) {
+				ERROR("Failed to parse $config_file; ignoring SIGHUP reload request");
 
-			# Do any new-config, old-config transitional tasks
+			} else {
+				# Do any new-config, old-config transitional tasks
 
-			$config = $newconfig;
-			configure_syslog($config->{log}) unless $foreground;
+				$config = $newconfig;
+				configure_syslog($config->{log}) unless $foreground;
 
-			merge_check_defs($checks, $newchecks);
+				merge_check_defs($checks, $newchecks);
+			}
 		}
 
 		$checks = [grep { $_->{pid} > 0 || !exists $_->{deleted} } @$checks];
@@ -875,7 +947,10 @@ sub start
 
 				if ($check->{next_run} < $now) {
 					DEBUG("check $check->{name} next run $check->{next_run} < $now");
-					run_check($check, $config->{plugin_root});
+					if (!run_check($check, $config->{plugin_root})) {
+						# Remove locks if we failed to run the check
+						unlock($check->{lock}) if $check->{lock};
+					}
 				}
 			}
 		}
@@ -898,6 +973,49 @@ sub start
 			waitpid($check->{pid}, 0);
 		}
 	}
+}
+
+sub lock
+{
+	my ($key, %opts) = @_;
+	return 0 unless $key;
+	if (! locked($key)) {
+		if (!exists $LOCKS{$key}) {
+			$LOCKS{$key} = {
+				%opts,
+				unlocked_at => -1,
+			};
+		}
+		$LOCKS{$key}{locked}    = 1;
+		$LOCKS{$key}{locked_at} = time;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+sub unlock
+{
+	my ($key) = @_;
+	return unless $key;
+	$LOCKS{$key}{locked} = 0;
+	$LOCKS{$key}{unlocked_at} = time;
+}
+
+sub locked
+{
+	my ($key) = @_;
+	return 0 unless $key;
+	if ( exists $LOCKS{$key} && exists $LOCKS{$key}{locked}) {
+		return $LOCKS{$key}{locked};
+	} else {
+		return 0;
+	}
+}
+
+sub keymaster
+{
+	return \%LOCKS;
 }
 
 1;
@@ -1026,6 +1144,14 @@ some other signal).
 This function handles various edge cases, including check runs that
 created no output, and check runs that were killed because of timeouts.
 
+=item B<filter_checks($checks, $query)>
+
+Given a set of checks, filter them to a subset, based on an arbitrary,
+comma-separated list of groups.  The keywords B<default> and B<all> have
+special meaning; B<default> matches checks without a group (and any that
+are explicitly placed in the C<default> group).  B<all> matches all
+checks, regardless of their grouping.
+
 =item B<send_nsca($parent, $cmd, @checks)>
 
 Fork a child process to submit results to a single Nagios parent via
@@ -1041,6 +1167,10 @@ or return B<undef> if an error condition occurs.
 Parse the Nagios::Agent YAML configuration, supplying default values
 where appropriate.  Returns two values, the global configuration and
 an array of normalized check definitions.
+
+If any errors are encountered parsing the file, B<undef> will be
+returned.  Callers should check this before doing anything with the
+configuration (like trying to reconfigure on a live run)
 
 =item B<dump_config($config, $checks)>
 
@@ -1081,7 +1211,7 @@ Read from a child process output pipe, until the pipe is closed or an
 error is detected.
 
 This function is based off of B<read_once>, and is called from
-B<reap_check> and B<run_all> (for `nlma -tv`, which doesn't call the
+B<reap_check> and B<runall> (for `nlma -tv`, which doesn't call the
 B<waitall> function and therefore needs to read child output to prevent
 deadlock).
 
@@ -1111,6 +1241,27 @@ average run time, etc.).
 =item B<sigusr1_handler>
 
 Signal handles for dealing with external control mechanisms.
+
+=item B<lock>
+
+Creates a named mutex for locking checks to prevent them from running simultaneously.
+
+Takes a mandatory lock name, followed by an optional hash to set custom lock attributes,
+such as 'locked_by'.
+
+=item B<locked>
+
+Takes a mandatory lock name, and returns true or false whether or not it is currently
+locked.
+
+=item B<unlock>
+
+Takes a mandatory lock name, and unlocks it.
+
+=item B<keymaster>
+
+Returns a hashref of the entire lock structure. This should contain what is actively
+locked, when it was locked, and what check it was locked by.
 
 =back
 
