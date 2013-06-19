@@ -860,7 +860,7 @@ sub submit_oob
 		hostname    => $alert->{host},
 		name        => $service,
 		exit_status => $alert->{code},
-		output      => "CLI: $alert->{output} (submitted via $config->{hostname})",
+		output      => "$alert->{output} (submitted via $config->{hostname})",
 	};
 	$check->{hostname} = $config->{hostname} unless $check->{hostname};
 
