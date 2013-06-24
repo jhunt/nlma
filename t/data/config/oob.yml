@@ -1,0 +1,7 @@
+---
+hostname: default-host
+parents:
+  default:
+    - 127.0.0.1:5668
+---
+# no checks, testing of OOB submission only

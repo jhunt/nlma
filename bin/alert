@@ -123,10 +123,14 @@ It is designed to be easy to use, with as little dependence on the locally
 running system as possible (i.e. no temp files, B<nlma> doesn't have to
 be running, etc.).
 
+To identify out-of-band check results submitted by B<alert>, all service
+names will be prefixed with C<oob_>.  This is done automatically by the
+B<alert> tool, so you do not need to specify the prefix explicitly.
+
 =head1 EXAMPLES
 
 Here is a snippet of a shell script that submits job results for the
-daily backup job:
+daily backup job (oob_daily_backups in Synformer):
 
     #!/bin/bash
 
@@ -163,13 +167,16 @@ This one's for you (although only a sysadmin could love this approach):
 
     qx(/usr/bin/alert -S 'my_stuff' -s $status -m "$message");
 
+(This script submits results to the oob_my_stuff service)
+
 =head1 OPTIONS
 
 =over
 
 =item B<--service>, B<-S> I<service-name>
 
-Name of the service to submit results for.
+Name of the service to submit results for.  If the service name
+does not start with the C<oob_> prefix, it will be added for you.
 
 This option is required.
 

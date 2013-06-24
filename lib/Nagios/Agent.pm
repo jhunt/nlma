@@ -24,6 +24,7 @@ my %STATE_CODES = (
 );
 
 my %LOCKS = ();
+my $OOB_PREFIX = "oob";
 
 our $VERSION = '2.5';
 
@@ -853,11 +854,13 @@ sub submit_oob
 	my ($config, undef) = parse_config($config_file);
 	INFO "nlma v$VERSION starting up (running as $>:$))\n";
 
+	my $service = "${OOB_PREFIX}_".$alert->{service};
+	$service =~ s/^(${OOB_PREFIX}_)${OOB_PREFIX}_/$1/; # de-dupe prefixes
 	my $check = {
 		hostname    => $alert->{host},
-		name        => "oob_".$alert->{service},
+		name        => $service,
 		exit_status => $alert->{code},
-		output      => "CLI: $alert->{output} (submitted via $config->{hostname})",
+		output      => "$alert->{output} (submitted via $config->{hostname})",
 	};
 	$check->{hostname} = $config->{hostname} unless $check->{hostname};
 
