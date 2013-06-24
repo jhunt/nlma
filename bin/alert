@@ -34,7 +34,7 @@ sub usage
 	print "      for.  By default, the local FQDN is used.\n";
 	print "\n";
 	print "  --service, -S NAME\n";
-	print "      The service to submit an alert result for.\n";
+	print "      The service to submit an alert result for (this will be prefixed with 'oob_').\n";
 	print "      This option is required.\n";
 	print "\n";
 	print "  --status, -s (OK|WARNING|CRITICAL|UNKNOWN)\n";
