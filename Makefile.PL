@@ -12,6 +12,7 @@ WriteMakefile(
 		: ()),
 	PL_FILES            => {},
 	EXE_FILES           => [qw(
+			bin/alert
 			bin/nlma
 			bin/nlma-debug
 			bin/nlma-timeout
