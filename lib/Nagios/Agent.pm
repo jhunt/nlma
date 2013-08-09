@@ -621,10 +621,12 @@ sub merge_check_defs
 			next unless $oldcheck->{hostname} eq $newcheck->{hostname};
 			$found = 1;
 
-			$oldcheck->{environment} = $newcheck->{environment};
-			$oldcheck->{command}  = $newcheck->{command};
-			$oldcheck->{interval} = $newcheck->{interval};
-			$oldcheck->{timeout}  = $newcheck->{timeout};
+			for (qw(environment group
+					command timeout on_timeout
+					interval retry attempts)) {
+				next unless $newcheck->{$_};
+				$oldcheck->{$_} = $newcheck->{$_}
+			}
 
 			DEBUG("updating check definition for $oldcheck->{name}");
 

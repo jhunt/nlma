@@ -8,33 +8,35 @@ use Nagios::Agent;
 
 	my $old = [
 		{
-			hostname => 'localhost',
-			name     => 'check1',
-			timeout  => 45,
-			pid      => -1, # force re-schedule
-			interval => 300,
-			retry    => 60,
-			attempts => 1,
-			command  => 'check_stuff',
+			hostname    => 'localhost',
+			name        => 'check1',
+			timeout     => 45,
+			pid         => -1, # force re-schedule
+			interval    => 300,
+			retry       => 60,
+			attempts    => 1,
+			command     => 'check_stuff',
 			environment => 'default',
 
-			started_at => $NOW - 200,
-			ended_at   => $NOW - 200 + 5,
-			next_run   => $NOW + 100,
+			started_at  => $NOW - 200,
+			ended_at    => $NOW - 200 + 5,
+			next_run    => $NOW + 100,
 		},
 		{
-			hostname => 'localhost',
-			name     => 'check2',
-			timeout  => 45,
-			pid      => 1010, # to avoid re-scheduling
-			interval => 300,
-			retry    => 60,
-			attempts => 1,
-			command  => 'check_stuff',
+			hostname    => 'localhost',
+			name        => 'check2',
+			timeout     => 45,
+			on_timeout  => "critical",
+			pid         => 1010, # to avoid re-scheduling
+			interval    => 300,
+			retry       => 60,
+			attempts    => 1,
+			command     => 'check_stuff',
 			environment => 'default',
+			group       => 'G2',
 
-			started_at => $NOW,
-			next_run   => $NOW
+			started_at  => $NOW,
+			next_run    => $NOW
 		},
 		{
 			name     => 'delete-me', # this check should get removed
@@ -42,13 +44,15 @@ use Nagios::Agent;
 	];
 
 	my $new = [ # can be in any order!
-		{ # update check2 with a new timeout
+		{ # update check2 with a new timeout / group
 			name        => 'check2',
 			hostname    => $old->[1]{hostname},    # unchanged
 			environment => $old->[1]{environment}, # unchanged
 			command     => $old->[1]{command},     # unchanged
 			interval    => $old->[1]{interval},    # unchanged
 			timeout     => 10,
+			on_timeout  => "warning",
+			group       => 'group #2',
 		},
 		{ # update check1 with new intervals
 			name        => 'check1',
@@ -56,17 +60,19 @@ use Nagios::Agent;
 			environment => 'staging',
 			command     => $old->[0]{command},     # unchanged
 			interval    => 60,
+			attempts    => 4,
+			retry       => 15,
 			timeout     => $old->[0]{timeout},     # unchanged
 		},
 		{ # Create new check (check3)
-			name     => 'check3',
-			hostname => 'localhost',
-			timeout  => 40,
-			pid      => -1,
-			interval => 30,
-			retry    => 6,
-			attempts => 2,
-			command  => 'check_stuff',
+			name        => 'check3',
+			hostname    => 'localhost',
+			timeout     => 40,
+			pid         => -1,
+			interval    => 30,
+			retry       => 6,
+			attempts    => 2,
+			command     => 'check_stuff',
 			environment => 'default',
 		},
 	];
@@ -80,8 +86,8 @@ use Nagios::Agent;
 			timeout     => 45,
 			pid         => -1,
 			interval    => 60, # CHANGED
-			retry       => 60,
-			attempts    =>  1,
+			retry       => 15, # CHANGED
+			attempts    =>  4, # CHANGED
 			command     => 'check_stuff',
 			environment => 'staging', # CHANGED
 
@@ -95,12 +101,14 @@ use Nagios::Agent;
 			name        => "check2",
 			hostname    => 'localhost',
 			timeout     => 10, # CHANGED
+			on_timeout  => "warning", # CHANGED
 			pid         => 1010,
 			interval    => 300,
 			retry       => 60,
 			attempts    =>  1,
 			command     => 'check_stuff',
 			environment => 'default',
+			group       => 'group #2', # CHANGED
 
 			# check is rescheduled
 			started_at  => $NOW, # same
