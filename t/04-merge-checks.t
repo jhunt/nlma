@@ -3,8 +3,9 @@
 use Test::More;
 use Nagios::Agent;
 
+my $NOW = time;
+
 { # Merging of check defs is additive
-	my $NOW = time;
 
 	my $old = [
 		{
@@ -131,7 +132,6 @@ use Nagios::Agent;
 }
 
 { # merge checks for the same check name, different hosts (ITM-2417)
-	my $NOW = time;
 
 	my $old = [
 		{
