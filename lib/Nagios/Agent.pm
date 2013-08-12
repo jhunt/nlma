@@ -622,11 +622,13 @@ sub merge_check_defs
 			$found = 1;
 
 			for (qw(environment group
+					sudo
 					command timeout on_timeout
 					interval retry attempts)) {
 				next unless $newcheck->{$_};
 				$oldcheck->{$_} = $newcheck->{$_}
 			}
+			delete $oldcheck->{sudo} unless $newcheck->{sudo};
 
 			DEBUG("updating check definition for $oldcheck->{name}");
 

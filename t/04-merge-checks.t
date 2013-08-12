@@ -205,4 +205,47 @@ use Nagios::Agent;
 	is(@$old, 2, "Didn't lost any checks");
 }
 
+{ # merge sudo attribute intelligently
+	my $old = {
+			hostname => 'hosta',
+			name     => 'check1',
+			timeout  => 45,
+			pid      => -1,
+			interval => 300,
+			retry    => 60,
+			attempts => 1,
+			command  => 'check_stuff',
+			environment => 'default',
+			# no sudo
+
+			started_at => $NOW - 200,
+			ended_at   => $NOW - 200 + 5,
+			next_run   => $NOW + 100,
+	};
+
+	my $new = {
+			hostname => 'hosta',
+			name     => 'check1',
+			timeout  => 45,
+			pid      => -1,
+			interval => 300,
+			retry    => 60,
+			attempts => 1,
+			command  => 'check_stuff',
+			environment => 'default',
+			sudo     => 'root', # CHANGED
+	};
+
+	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is($old->{sudo}, "root", "sudo attribute set");
+
+	$new->{sudo} = "xyzzy";
+	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is($old->{sudo}, "xyzzy", "sudo attribute changed");
+
+	delete $new->{sudo};
+	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is($old->{sudo}, undef, "sudo attribute unset");
+}
+
 done_testing;
