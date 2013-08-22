@@ -142,7 +142,7 @@ daily backup job (oob_daily_backups in Synformer):
         # Get the errors for the alert message
         ERRORS=$(cat /tmp/backup.fail)
 
-        alert -S daily_backups -s CRITICAL -m "ERROS encountered: $ERRORS"
+        alert -S daily_backups -s CRITICAL -m "ERRORS encountered: $ERRORS"
 
     else
         alert -S daily_backups -s OK -m "backups completed"
