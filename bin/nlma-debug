@@ -6,7 +6,7 @@ use warnings;
 use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure('bundling');
 use Data::Dumper;
-use YAML::Syck;
+use YAML;
 use Pod::Usage;
 use Nagios::Agent::Table;
 use POSIX qw/strftime/;
