@@ -78,6 +78,7 @@ GetOptions(\%opt,
 	"noop|n",
 	"verbose|v+",
 	"only|o=s",
+	"match|m=s",
 	"all",
 );
 
@@ -104,7 +105,7 @@ if ($opt{runall}) {
 
 	$opt{only} = 'default' unless $opt{only};
 	$opt{only} = 'all' if $opt{all};
-	$checks = Nagios::Agent::filter_checks($checks, $opt{only});
+	$checks = Nagios::Agent::filter_checks($checks, $opt{only}, $opt{match});
 
 	print "nlma v$Nagios::Agent::VERSION starting up (running as $config->{user}:$config->{group})\n";
 	Nagios::Agent::drop_privs($config->{user}, $config->{group});
@@ -202,6 +203,15 @@ with B<--test>.
 
 Run all checks, regardless of groups.  Equivalent to B<--only all>.
 This is only effective when paired with B<--test>.
+
+=item B<--match>, B<-m> I<match|regex>
+
+Filter the list of checks to run (under B<--test>) to checks with names
+matching the given regular expression.  Don't forget to quote as needed
+to avoid bash parsing semantics!
+
+This is only effective when paired with B<--test>.  If used in conjunction
+with B<--only>, this will only filter the checks in the desired groups.
 
 =item B<--noop>, B<-n>
 

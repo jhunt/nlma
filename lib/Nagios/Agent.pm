@@ -287,11 +287,11 @@ sub reap_check
 
 sub filter_checks
 {
-	my ($checks, $q) = @_;
+	my ($checks, $q, $re) = @_;
+	$re = '.' unless $re;
 	$q = 'default' unless $q;
 	my %Q = map { $_ => 1 } split /\s*,\s*/, $q;
-	return $checks if $Q{all};
-	return [grep { $Q{$_->{group}} } @$checks];
+	return [grep { ($Q{all} || $Q{$_->{group}}) && $_->{name} =~ $re } @$checks];
 }
 
 sub send_nsca
