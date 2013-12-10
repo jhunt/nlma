@@ -494,6 +494,10 @@ sub parse_config
 	for my $cname (keys %$checks) {
 		DEBUG("parsed check definition for $cname");
 		my $check = $checks->{$cname};
+		if (!$check || !exists $check->{command}) {
+			ERROR("check '$cname' is missing command definition");
+			return undef;
+		}
 		$check->{current} = 1; # current attempt
 
 		# Use config key as name if not overridden

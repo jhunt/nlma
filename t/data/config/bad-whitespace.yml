@@ -1,0 +1,34 @@
+---
+# GLOBAL configuration
+hostname: fixed.host.example.com
+user:  mon-user
+group: mon-group
+pid_file: /path/to/pid.file
+parents:
+  default:
+    - df01.example.com
+    - df02.example.com
+send_nsca: /opt/other/send_nsca -c /etc/nsca.cfg
+
+timeout: 75
+on_timeout: warning
+interval: 240
+startup_splay: 17
+
+plugin_root: /opt/plugin/root
+dump: /usr/share
+
+log:
+  level: info
+  facility: authpriv
+
+checkin:
+  service: whats-up
+  interval: 123
+
+
+errlog: /fixme/remove
+---
+
+check_ok:
+command: this is not ok

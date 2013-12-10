@@ -225,6 +225,16 @@ use Sys::Hostname qw(hostname);
 
 	ok(!defined($config), "config result not defined for bad YAML");
 	ok(!defined($checks), "checks result not defined for bad YAML");
+
+	($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad-whitespace.yml');
+	ok(!defined($config), "config result not defined for bad whitespace");
+	ok(!defined($checks), "checks result not defined for bad whitespace");
+
+	($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad-missing-command.yml');
+	ok(!defined($config), "config result not defined for missing command");
+	ok(!defined($checks), "checks result not defined for missing command");
 }
+
+
 
 done_testing;
