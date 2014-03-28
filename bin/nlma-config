@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long qw/:config bundling/;
+use YAML::XS qw/Dump/;
+use Pod::Usage;
+use Nagios::Agent;
+
+my %OPTIONS = (
+	config => '/etc/nlma.yml'
+);
+GetOptions(\%OPTIONS, qw/
+	help|h|?
+	debug|D
+
+	config|c=s
+/) or pod2usage(2);
+pod2uage(1) if $OPTIONS{help};
+
+my ($config, $checks) = Nagios::Agent::parse_config($OPTIONS{config});
+chomp(my $fqdn = qx(/bin/hostname -f));
+
+my %data;
+for my $check (@$checks) {
+	$data{$check->{hostname}}{$check->{name}} = {
+		run_from   => $fqdn,
+		timeout    => $check->{timeout},
+		on_timeout => $check->{on_timeout},
+		command    => $check->{command},
+		attempts   => $check->{attempts},
+		interval   => $check->{interval},
+		retry      => $check->{retry},
+		run_as     => $check->{sudo} || $config->{user},
+	};
+}
+
+print Dump(\%data);
+exit 0;
+
+=head1 NAME
+
+nlma-config - Collect NLMA configurations for Synformer
+
+=head1 SYNOPSIS
+
+nlma-config
+
+nlma-config --config /etc/alt/nlma.yml
+
+=head1 DESCRIPTION
+
+This utility parses an NLMA configuration file and dumps the configured
+checks as YAML.  This data is expected to be useful primarily to Synformer
+for its configuration metadata.
+
+=head1 OPTIONS
+
+=over
+
+=item B<-c>, B<--config> I</path/to/nlma.yml>
+
+Path to the NLMA configuration file.
+Defaults to I</etc/nlma.yml>.
+
+=item B<-h>, B<--help>
+
+Show the help screen.
+
+=back
+
+=head1 AUTHOR
+
+Written by James Hunt B<< <jhunt@synacor.com> >>.
+
+=cut
