@@ -27,7 +27,6 @@ for my $check (@$checks) {
 	$data{$check->{hostname}}{$check->{name}} = {
 		run_from   => $fqdn,
 		timeout    => $check->{timeout},
-		on_timeout => $check->{on_timeout},
 		command    => $check->{command},
 		attempts   => $check->{attempts},
 		interval   => $check->{interval},
