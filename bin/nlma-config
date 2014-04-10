@@ -25,6 +25,7 @@ chomp(my $fqdn = qx(/bin/hostname -f));
 my %data;
 for my $check (@$checks) {
 	$data{$check->{hostname}}{$check->{name}} = {
+		type       => 'nlma',
 		run_from   => $fqdn,
 		timeout    => $check->{timeout},
 		command    => $check->{command},
