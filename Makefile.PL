@@ -15,6 +15,7 @@ WriteMakefile(
 			bin/alert
 			bin/nlma
 			bin/nlma-debug
+			bin/nlma-config
 			bin/nlma-timeout
 		)],
 	PREREQ_PM => {
