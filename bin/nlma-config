@@ -19,20 +19,28 @@ GetOptions(\%OPTIONS, qw/
 /) or pod2usage(2);
 pod2uage(1) if $OPTIONS{help};
 
+sub format_time
+{
+	my ($s) = @_;
+	return int($s / 60) . 'm' if $s > 120;
+	return $s . 's';
+}
+
 my ($config, $checks) = Nagios::Agent::parse_config($OPTIONS{config});
 chomp(my $fqdn = qx(/bin/hostname -f));
 
 my %data;
 for my $check (@$checks) {
 	$data{$check->{hostname}}{$check->{name}} = {
-		type       => 'nlma',
-		run_from   => $fqdn,
-		timeout    => $check->{timeout},
-		command    => $check->{command},
-		attempts   => $check->{attempts},
-		interval   => $check->{interval},
-		retry      => $check->{retry},
-		run_as     => $check->{sudo} || $config->{user},
+		type         => 'nlma',
+		run_from     => $fqdn,
+		timeout      => $check->{timeout},
+		command      => $check->{command},
+		attempts     => $check->{attempts},
+		interval     => $check->{interval},
+		retry        => $check->{retry},
+		run_as       => $check->{sudo} || $config->{user},
+		run_schedule => "every ".format_time($check->{interval}),
 	};
 }
 
