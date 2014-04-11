@@ -22,6 +22,7 @@ pod2uage(1) if $OPTIONS{help};
 sub format_time
 {
 	my ($s) = @_;
+	return int($s / 3600) . 'h' if $s > 3600;
 	return int($s / 60) . 'm' if $s > 120;
 	return $s . 's';
 }
