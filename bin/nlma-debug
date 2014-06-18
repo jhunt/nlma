@@ -251,6 +251,7 @@ if ($OPTIONS{full}) {
 
 		print "  CHECK INFORMATION:\n";
 		print "    command is: `$check->{command}`\n";
+		print "       runs as: ".($check->{sudo} || $conf->{user})." (".($check->{sudo} ? "via sudo" : "no sudo").")\n";
 		print "    results submit to '$check->{environment}' servers:\n";
 		for (@{$conf->{parents}{$check->{environment}}}) {
 			print "      - $_\n";
