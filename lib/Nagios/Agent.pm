@@ -127,6 +127,7 @@ sub run_check
 	my ($readfd, $writefd);
 	pipe $readfd, $writefd;
 
+	my $run_as = $check->{sudo};
 	my $command = $check->{command};
 	if (substr($command, 0, 1) ne "/") {
 		if ($root) {
@@ -151,12 +152,12 @@ sub run_check
 			$command = "/bin/echo 'UNKNOWN - plugin \"$bin\" $error'; exit 3";
 
 			# skip sudo, if specified (we don't need to sudo echo)
-			delete $check->{sudo};
+			$run_as = undef;
 		}
 	}
 
-	if ($check->{sudo}) {
-		$command = "/usr/bin/sudo -n -u $check->{sudo} /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
+	if ($run_as) {
+		$command = "/usr/bin/sudo -n -u $run_as /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
 	}
 
 	INFO("executing '$command' via /bin/sh -c");

@@ -32,6 +32,14 @@ use Log::Log4perl qw(:easy);
 	is($checks->[0]{stderr}, "this is standard error\n", "STDERR of check captured");
 }
 
+{ # Check that we don't delete things from the check object when we run (ITM-3597)
+	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/itm-3597.yml");
+
+	is $checks->[0]{sudo}, "root", "check command set to run as root";
+	Nagios::Agent::run_check($checks->[0], getcwd."/t/checks");
+	is $checks->[0]{sudo}, "root", "check command is still set to run as root";
+}
+
 { # Test locking
 	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/locks.yml");
 	ok(! Nagios::Agent::locked('locked_check'), "'locked_check' is not locked prior to running 'check_locks'");

@@ -1,0 +1,13 @@
+---
+plugin_root: t/checks
+parents:
+  default:
+    - test.example.com:5667
+errlog: t/tmp/err.log
+---
+basic_check:
+  command: check_should_not_exist
+  # Yes, this will fail, but we're not interested in actually running
+  # the check for the associated tests (t/20-run.t), just that we still
+  # have ->{sudo} if the plugin doesn't exist
+  sudo: root
