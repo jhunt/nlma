@@ -66,6 +66,7 @@ sub usage
 my %opt = (
 	config => $DEFAULT_CONFIG_FILE_PATH,
 	verbose => 0,
+	env => '',
 	foreground => undef
 );
 
@@ -79,6 +80,7 @@ GetOptions(\%opt,
 	"verbose|v+",
 	"only|o=s",
 	"match|m=s",
+	"env=s",
 	"all",
 );
 
@@ -90,7 +92,20 @@ if ($opt{help}) {
 if ($opt{runall}) {
 	Log::Log4perl->easy_init($INFO)  if $opt{verbose} > 0;
 	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 1;
+}
 
+INFO("Clearing environment variable that affect plugins and the SynaMon::Plugin framework");
+for my $var (keys %ENV) {
+	next unless $var =~ m/^(SUDO_USER|TEST_)/;
+	if ($var =~ m/^$opt{env}$/) {
+		INFO("Preserving ENV{$var} (matched --env $opt{env})");
+	} else {
+		INFO("Deleting ENV{$var} (value='$ENV{$var}')");
+		delete $ENV{$var};
+	}
+}
+
+if ($opt{runall}) {
 	$opt{config} = abs_path($opt{config});
 	if (!-r $opt{config}) {
 		print STDERR "$opt{config}: $!\n";
@@ -219,6 +234,14 @@ When combined with B<--runall> (B<-t>), skip the submission of check results
 to NSCA servers.  Note that all checks will actually be run, and incur any
 side effects.
 
+=item B<--env> I<PATTERN>
+
+By default, B<nlma> will clean up its environment.  This option instructs it
+to preserve all environment variables that match the Perl-compatible regular
+expression I<PATTERN>.  This pattern will be implicitly anchored at both
+beginning and end, so to match partial variable names you will need to use
+globs (like --env 'TEST_.*').
+
 =item B<--verbose>, B<-v>
 
 Increase output in foreground mode (see B<--foreground>).  Can be specified
@@ -228,6 +251,31 @@ flags; B<-vvv> is equivalent to full debug mode.
 =item B<--help>, B<-h>, B<-?>
 
 Display a short (but informative!) help screen.
+
+=back
+
+=head1 ENVIRONMENT VARIABLES
+
+By default, nlma will attempt to clean up its environment before it runs any
+checks.  This ensures that environment variables with special meaning to the
+plugins written against the Synacor Monitoring Plugin Framework are not
+propagated accidentally from the callers environment.
+
+The following variables will be removed, unless B<--env> preserves them:
+
+=over
+
+=item B<SUDO_USER>
+
+The plugin framework uses the value in SUDO_USER (if present) to locate its
+credentials store.  This makes it easier to test checks and perform one-off
+runs, but makes it difficult to properly run C<nlma --test>.
+
+=item B<TEST_*>
+
+All environment variables that start with the prefix C<TEST_> are used by
+the plugin framework for testing and development.  They should B<never> be
+seen in a production context.
 
 =back
 
