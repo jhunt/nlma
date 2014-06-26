@@ -26,7 +26,7 @@ my %STATE_CODES = (
 my %LOCKS = ();
 my $OOB_PREFIX = "oob";
 
-our $VERSION = '2.6';
+our $VERSION = '2.7';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
