@@ -45,6 +45,14 @@ sub usage
 	print "\n";
 	print "      This is only applicable with --runall.\n";
 	print "\n";
+	print " --match, -m match|regex\n";
+	print "      Filter the list of checks to run (under --test) to\n";
+	print "      checks with names matching the given regular expression.\n";
+	print "      Don't forget to quote as needed to avoid bash parsing semantics!\n";
+	print "      This is only effective when paired with --test.  If used\n";
+	print "      in conjunction with --only, this will only filter the checks\n";
+	print "      in the desired groups.\n";
+	print "\n";
 	print " --all\n";
 	print "      By default only the checks with group 'default' (or\n";
 	print "      those without a group defined) will be run. This forces\n";
