@@ -248,4 +248,47 @@ my $NOW = time;
 	is($old->{sudo}, undef, "sudo attribute unset");
 }
 
+{ # locking should merge
+	my $old = {
+			hostname => 'hosta',
+			name     => 'check1',
+			timeout  => 45,
+			pid      => -1,
+			interval => 300,
+			retry    => 60,
+			attempts => 1,
+			command  => 'check_stuff',
+			environment => 'default',
+			# no sudo
+
+			started_at => $NOW - 200,
+			ended_at   => $NOW - 200 + 5,
+			next_run   => $NOW + 100,
+	};
+
+	my $new = {
+			hostname => 'hosta',
+			name     => 'check1',
+			timeout  => 45,
+			pid      => -1,
+			interval => 300,
+			retry    => 60,
+			attempts => 1,
+			command  => 'check_stuff',
+			environment => 'default',
+			lock     => 'test1',
+	};
+
+	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is($old->{lock}, "test1", "lock attribute set");
+
+	$new->{lock} = "update1";
+	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is($old->{lock}, "update1", "lock atttribute updated");
+
+	delete $new->{lock};
+	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is($old->{lock}, undef, "lock atttribute unset");
+}
+
 done_testing;

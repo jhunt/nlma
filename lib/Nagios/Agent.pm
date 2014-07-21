@@ -26,7 +26,7 @@ my %STATE_CODES = (
 my %LOCKS = ();
 my $OOB_PREFIX = "oob";
 
-our $VERSION = '2.7';
+our $VERSION = '2.8';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -627,13 +627,15 @@ sub merge_check_defs
 			$found = 1;
 
 			for (qw(environment group
-					sudo
+					sudo lock
 					command timeout on_timeout
 					interval retry attempts)) {
 				next unless $newcheck->{$_};
 				$oldcheck->{$_} = $newcheck->{$_}
 			}
-			delete $oldcheck->{sudo} unless $newcheck->{sudo};
+			for (qw(sudo lock)) {
+				delete $oldcheck->{$_} unless $newcheck->{$_};
+			}
 
 			DEBUG("updating check definition for $oldcheck->{name}");
 
