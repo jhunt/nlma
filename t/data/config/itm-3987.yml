@@ -1,0 +1,9 @@
+---
+plugin_root: t/checks
+parents:
+  default:
+    - test.example.com:5667
+errlog: t/tmp/err.log
+---
+check_debug:
+  command: check_debug

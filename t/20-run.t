@@ -71,6 +71,35 @@ use Log::Log4perl qw(:easy);
 	ok(! Nagios::Agent::locked('failed_check'), "LOCK{failed_check} is not set after running a failed check");
 }
 
+{ # Check that we Display STDERR Debug out (ITM-3987)
+	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/itm-3987.yml");
+	my $rc;
+
+	Nagios::Agent::run_check($checks->[0], getcwd."/t/checks", 0);
+	diag "Waiting on child PID ".$checks->[0]{pid};
+	waitpid($checks->[0]{pid}, 0); $rc = $?;
+	is($rc, 0x0000, "check exited 0");
+	is(Nagios::Agent::reap_check($checks->[0], $rc), 0, "reap_check returns 0 on success");
+	is($checks->[0]{output}, "DEBUG OK - Everything is debug", "STDOUT is correct for no debug");
+	is($checks->[0]{stderr}, "", "NO STDERR of check for non-debug");
+
+	Nagios::Agent::run_check($checks->[0], getcwd."/t/checks", 1);
+	diag "Waiting on child PID ".$checks->[0]{pid};
+	waitpid($checks->[0]{pid}, 0); $rc = $?;
+	is($rc, 0x0000, "check exited 0");
+	is(Nagios::Agent::reap_check($checks->[0], $rc), 0, "reap_check returns 0 on success");
+	is($checks->[0]{output}, "DEBUG OK - Everything is debug", "STDOUT is correct for debug");
+	is($checks->[0]{stderr}, "DEBUG> debug output\n", "STDERR of check captured for debug");
+
+	Nagios::Agent::run_check($checks->[0], getcwd."/t/checks", 3);
+	diag "Waiting on child PID ".$checks->[0]{pid};
+	waitpid($checks->[0]{pid}, 0); $rc = $?;
+	is($rc, 0x0000, "check exited 0");
+	is(Nagios::Agent::reap_check($checks->[0], $rc), 0, "reap_check returns 0 on success");
+	is($checks->[0]{output}, "DEBUG OK - Everything is debug", "STDOUT is correct for trace");
+	is($checks->[0]{stderr}, "DEBUG> debug output\nTRACE> trace output\n", "STDERR of check captured for trace");
+}
+
 ok(1);
 
 done_testing;

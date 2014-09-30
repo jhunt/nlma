@@ -26,7 +26,7 @@ my %STATE_CODES = (
 my %LOCKS = ();
 my $OOB_PREFIX = "oob";
 
-our $VERSION = '2.8';
+our $VERSION = '2.9';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -110,7 +110,7 @@ sub schedule_check
 
 sub run_check
 {
-	my ($check, $root) = @_;
+	my ($check, $root, $debug) = @_;
 
 	if (locked($check->{lock})) {
 		INFO("check $check->{name} attempted to run, but is locked by " . keymaster()->{$check->{lock}}{locked_by});
@@ -127,8 +127,12 @@ sub run_check
 	my ($readfd, $writefd);
 	pipe $readfd, $writefd;
 
-	my $run_as = $check->{sudo};
+	my $run_as  = $check->{sudo};
 	my $command = $check->{command};
+
+	$debug    = 0 unless defined $debug;
+	$command .= ' -D'x$debug;
+
 	if (substr($command, 0, 1) ne "/") {
 		if ($root) {
 			$command = "$root/$command";
@@ -823,13 +827,13 @@ sub sigusr1_handler { $DUMPCONFIG = 1; }
 
 sub runall
 {
-	my ($class, $config, $checks, $noop) = @_;
+	my ($class, $config, $checks, $noop, $debug) = @_;
 
 	my %results = ();
 	for my $check (@$checks) {
 		print "$check->{name}\n";
 		print "   `$check->{command}`\n";
-		if (! run_check($check, $config->{plugin_root})) {
+		if (! run_check($check, $config->{plugin_root}, $debug)) {
 			# Remove locks if we failed to run the check
 			unlock($check->{lock}) if $check->{lock};
 		}

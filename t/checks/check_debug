@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+my ($trace, $debug) = (0, 0);
+my %opt = ();
+
+
+sub TRACE
+{
+	return unless $trace;
+	for (@_) {
+		print STDERR "TRACE> $_\n";
+	}
+}
+
+sub DEBUG
+{
+	return unless $debug;
+	for (@_) {
+		print STDERR "DEBUG> $_\n";
+	}
+}
+
+Getopt::Long::Configure qw(bundling);
+GetOptions(\%opt,
+	"debug|D+",
+	"trace",
+);
+
+if ($opt{trace} || ($opt{debug} && $opt{debug} == 3)) {
+	$trace = 1;
+	$debug = 1;
+} elsif ($opt{debug}) {
+	$debug = 1;
+}
+
+DEBUG "debug output";
+
+TRACE "trace output";
+
+print "DEBUG OK - Everything is debug\n";
+exit 0;

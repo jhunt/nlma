@@ -69,6 +69,16 @@ sub usage
 	print "      Increase verbosity.  Can be used multiple\n";
 	print "      times for increase verbosity.\n";
 	print "\n";
+	print " --debug, -D\n";
+	print "      Run checks in debug mode.  This mode automatically\n";
+	print "      turns on noop mode, also debug mode can only be\n";
+	print "      run with one check at a time, use match get only one\n";
+	print "      check.\n";
+	print "\n";
+	print " --trace, -DDD\n";
+	print "      Similar to debug mode, but check trace level debugging\n";
+	print "      is turned on\n";
+	print "\n";
 }
 
 my %opt = (
@@ -86,6 +96,8 @@ GetOptions(\%opt,
 	"runall|test|t",
 	"noop|n",
 	"verbose|v+",
+	"debug|D+",
+	"trace",
 	"only|o=s",
 	"match|m=s",
 	"env=s",
@@ -98,6 +110,8 @@ if ($opt{help}) {
 }
 
 if ($opt{runall}) {
+	$opt{debug}   = 3 if $opt{trace};
+	$opt{verbose} = $opt{debug} if $opt{debug};
 	Log::Log4perl->easy_init($INFO)  if $opt{verbose} > 0;
 	Log::Log4perl->easy_init($DEBUG) if $opt{verbose} > 1;
 }
@@ -133,11 +147,19 @@ if ($opt{runall}) {
 	print "nlma v$Nagios::Agent::VERSION starting up (running as $config->{user}:$config->{group})\n";
 	Nagios::Agent::drop_privs($config->{user}, $config->{group});
 
-	print "running ",scalar @$checks," checks ($opt{only})\n";
+	if($opt{debug} > 0) {
+		if(scalar @$checks > 1) {
+			print "You can only run one check in DEBUG mode at a time.\n";
+			print "\n";
+			return 1;
+		}
+		$opt{noop}    = 1;
+	}
+	print "running ",scalar @$checks," checks ($opt{only})\n" unless $opt{debug};
 	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
 	print "\n";
 
-	Nagios::Agent->runall($config, $checks, $opt{noop});
+	Nagios::Agent->runall($config, $checks, $opt{noop}, $opt{debug});
 	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
 
 } else {
