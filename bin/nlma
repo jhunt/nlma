@@ -147,7 +147,7 @@ if ($opt{runall}) {
 	print "nlma v$Nagios::Agent::VERSION starting up (running as $config->{user}:$config->{group})\n";
 	Nagios::Agent::drop_privs($config->{user}, $config->{group});
 
-	if($opt{debug} && $opt{debug} > 0) {
+	if ($opt{debug}) {
 		if(scalar @$checks > 1) {
 			print "You can only run one check in DEBUG mode at a time.\n";
 			print "\n";
