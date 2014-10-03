@@ -1040,7 +1040,7 @@ sub keymaster
 
 =head1 NAME
 
-Nagios::Agent - Nagios Local Check Agent
+Nagios::Agent - NLMA Local Monitoring Agent
 
 =head1 DESCRIPTION
 
