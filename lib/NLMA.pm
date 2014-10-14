@@ -27,7 +27,7 @@ my %STATE_CODES = (
 my %LOCKS = ();
 my $OOB_PREFIX = "oob";
 
-our $VERSION = '2.14';
+our $VERSION = '2.15';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -44,12 +44,10 @@ sub clean_check_output
 {
 	my ($buf) = @_;
 
+	# Drop carriage returns
+	$buf =~ s/\r//mg;
 	# Drop the last trailing newline
-	$buf =~ s/\r?\n$//m;
-
-	# per ITM-1603, handle multiline output by replacing \n with a forward slash.
-	# FIXME: ITM-1605 reminds us to take this out and return real newlines
-	$buf =~ s/\r?\n/ \/ /mg;
+	$buf =~ s/\n$//m;
 
 	return $buf;
 }
