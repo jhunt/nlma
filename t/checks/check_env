@@ -1,0 +1,3 @@
+#!/bin/bash
+echo "OK - ENV{PASS_THROUGH} is '$PASS_THROUGH'";
+exit 0;

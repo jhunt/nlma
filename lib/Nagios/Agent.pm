@@ -185,6 +185,7 @@ sub run_check
 		open STDIN, "</dev/null" or ERROR("Failed to reopen STDIN: $!");
 		close $readfd;
 
+		$ENV{$_} = $check->{env}{$_} for keys %{$check->{env}};
 		exec("/bin/sh", "-c", $command) or do {
 			FATAL("$name exec failed: $!");
 			exit 42;
@@ -503,6 +504,7 @@ sub parse_config
 			ERROR("check '$cname' is missing command definition");
 			return undef;
 		}
+		$check->{env} ||= {}; # environment variables
 		$check->{current} = 1; # current attempt
 
 		# Use config key as name if not overridden
@@ -523,6 +525,9 @@ sub parse_config
 
 		# Use default check environment
 		$check->{environment} = $check->{environment} || 'default';
+		$check->{env}{MONITOR_FEEDER_TARGETS} ||=
+			join(',', @{$config->{parents}{$check->{environment}}})
+				if $config->{parents}{$check->{environment}};
 
 		# Use default check group
 		$check->{group} = $check->{group} || 'default';
@@ -539,6 +544,7 @@ sub parse_config
 		DEBUG("$cname timeout is $check->{timeout} seconds");
 		DEBUG("$cname attempts is $check->{attempts}");
 		DEBUG("$cname retry interval is $check->{retry} seconds");
+		DEBUG("$cname env $_='$check->{env}{$_}'") for sort keys %{$check->{env}};
 
 		$check->{started_at} = $check->{duration} = $check->{ended_at} = 0;
 		$check->{next_run} = 0;
@@ -631,7 +637,7 @@ sub merge_check_defs
 			$found = 1;
 
 			for (qw(environment group
-					sudo lock
+					sudo lock env
 					command timeout on_timeout
 					interval retry attempts)) {
 				next unless $newcheck->{$_};

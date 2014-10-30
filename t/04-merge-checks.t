@@ -1,6 +1,7 @@
 #!perl
 
 use Test::More;
+use Test::Deep;
 use Nagios::Agent;
 
 my $NOW = time;
@@ -22,6 +23,8 @@ my $NOW = time;
 			started_at  => $NOW - 200,
 			ended_at    => $NOW - 200 + 5,
 			next_run    => $NOW + 100,
+
+			env => { STUFF_ENVIRON => "old" },
 		},
 		{
 			hostname    => 'localhost',
@@ -54,6 +57,7 @@ my $NOW = time;
 			timeout     => 10,
 			on_timeout  => "warning",
 			group       => 'group #2',
+			env => { DO_IT_BETTER => "yes" },
 		},
 		{ # update check1 with new intervals
 			name        => 'check1',
@@ -64,6 +68,7 @@ my $NOW = time;
 			attempts    => 4,
 			retry       => 15,
 			timeout     => $old->[0]{timeout},     # unchanged
+			env => { DO_IT_BETTER => "yes" },
 		},
 		{ # Create new check (check3)
 			name        => 'check3',
@@ -75,13 +80,14 @@ my $NOW = time;
 			attempts    => 2,
 			command     => 'check_stuff',
 			environment => 'default',
+			env => {},
 		},
 	];
 
 	is(Nagios::Agent::merge_check_defs($old, $new), 0, "merge_check_defs returns 0");
 
 #	$old->[0]{started_at} = $old->[0]{ended_at} = $old->[0]{next_run}   = 42;
-	is_deeply($old->[0], {
+	cmp_deeply($old->[0], {
 			name        => "check1",
 			hostname    => 'localhost',
 			timeout     => 45,
@@ -96,9 +102,14 @@ my $NOW = time;
 			started_at  => $NOW - 200,      # same
 			ended_at    => $NOW - 200 + 5,  # same
 			next_run    => $NOW - 200 + 60, # reschedule with new interval
+
+			env => {
+				# STUFF_ENVIRON is unset
+				DO_IT_BETTER => 'yes',
+			},
 		}, "check definitions merged for check1");
 
-	is_deeply($old->[1], {
+	cmp_deeply($old->[1], {
 			name        => "check2",
 			hostname    => 'localhost',
 			timeout     => 10, # CHANGED
@@ -114,11 +125,13 @@ my $NOW = time;
 			# check is rescheduled
 			started_at  => $NOW, # same
 			next_run    => $NOW, # same
+
+			env => { DO_IT_BETTER => 'yes' },
 		}, "check definitions merged for check2");
 
 	is($old->[2]{deleted}, 1, "delete-me check got deleted");
 
-	is_deeply($old->[3], {
+	cmp_deeply($old->[3], {
 			name        => "check3",
 			hostname    => 'localhost',
 			timeout     => 40,
@@ -128,6 +141,8 @@ my $NOW = time;
 			attempts    => 2,
 			command     => 'check_stuff',
 			environment => 'default',
+
+			env => {},
 		}, "check definition created for new check3");
 }
 
@@ -148,6 +163,8 @@ my $NOW = time;
 			started_at => $NOW - 200,
 			ended_at   => $NOW - 200 + 5,
 			next_run   => $NOW + 100,
+
+			env => {},
 		},
 		{
 			hostname => 'hostb',
@@ -163,12 +180,14 @@ my $NOW = time;
 			started_at => $NOW - 50,
 			ended_at   => $NOW - 200 + 5,
 			next_run   => $NOW - 200 + 300,
+
+			env => {},
 		}
 	];
 
 	is(Nagios::Agent::merge_check_defs($old, $old), 0, "merge_check_defs returns 0");
 
-	is_deeply($old->[0], {
+	cmp_deeply($old->[0], {
 			name        => "check1",
 			hostname    => 'hosta',
 			timeout     => 45,
@@ -183,9 +202,11 @@ my $NOW = time;
 			started_at  => $NOW - 200,      # same
 			ended_at    => $NOW - 200 + 5,  # same
 			next_run    => $NOW - 200 + 300, # reschedule with existing interval
+
+			env => ignore,
 		}, "check definitions merged for hosta/check1");
 
-	is_deeply($old->[1], {
+	cmp_deeply($old->[1], {
 			name        => "check1",
 			hostname    => 'hostb',
 			timeout     => 45,
@@ -200,6 +221,8 @@ my $NOW = time;
 			started_at  => $NOW - 50,      # same
 			ended_at    => $NOW - 200 + 5,  # same
 			next_run    => $NOW - 50 + 300, # reschedule with existing interval
+
+			env => ignore,
 		}, "check definitions merged for check2");
 
 	is(@$old, 2, "Didn't lost any checks");

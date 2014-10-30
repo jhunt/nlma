@@ -100,6 +100,19 @@ use Log::Log4perl qw(:easy);
 	is($checks->[0]{stderr}, "DEBUG> debug output\nTRACE> trace output\n", "STDERR of check captured for trace");
 }
 
+{ # Handle custom environment variables (ITM-4082)
+	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/itm-4082.yml");
+	my $rc;
+
+	Nagios::Agent::run_check($checks->[0], getcwd."/t/checks", 0);
+	diag "Waiting on child PID ".$checks->[0]{pid};
+	waitpid($checks->[0]{pid}, 0); $rc = $?;
+	is($rc, 0x0000, "check exited 0");
+	is(Nagios::Agent::reap_check($checks->[0], $rc), 0, "reap_check returns 0 on success");
+	is($checks->[0]{output}, "OK - ENV{PASS_THROUGH} is 'alright with me'", "STDOUT is correct");
+	is($checks->[0]{stderr}, "", "NO STDERR");
+}
+
 ok(1);
 
 done_testing;

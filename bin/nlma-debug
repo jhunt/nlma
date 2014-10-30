@@ -257,6 +257,17 @@ if ($OPTIONS{full}) {
 			print "      - $_\n";
 		}
 		print "\n";
+
+		print "  ENVIRONMENT:\n";
+		if (keys %{$check->{env}}) {
+			print "    the following environment variables will be set:\n";
+			print "\n";
+			print "    $_='$check->{env}{$_}'\n" for sort keys %{$check->{env}};
+		} else {
+			print "    nothing special (no overrides)\n";
+		}
+		print "\n";
+
 		print "  EXECUTION:\n";
 		if ($check->{pid} <= 0) {
 			print "    this check was not running when this report was generated\n";

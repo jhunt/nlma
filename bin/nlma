@@ -562,6 +562,11 @@ while still taking into account the current value of B<plugin_root>.
 By default, checks are not run with sudo, and will execute as the user running
 the nlma daemon.  See B<user> under B<GLOBAL CONFIGURATION>
 
+=item B<env>
+
+A map of environment variable names to the values that they should have during
+the execution of the check plugin.
+
 =back
 
 =head1 SCHEDULING
