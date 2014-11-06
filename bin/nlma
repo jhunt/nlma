@@ -149,11 +149,10 @@ if ($opt{runall}) {
 
 	if ($opt{debug}) {
 		if(scalar @$checks > 1) {
-			print "You can only run one check in DEBUG mode at a time.\n";
-			print "\n";
-			return 1;
+			print "\nYou can only run one check in DEBUG mode at a time.\n";
+			exit 1;
 		}
-		$opt{noop}    = 1;
+		$opt{noop} = 1;
 	}
 	print "running ",scalar @$checks," checks ($opt{only})\n" unless $opt{debug};
 	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
@@ -277,6 +276,19 @@ globs (like --env 'TEST_.*').
 Increase output in foreground mode (see B<--foreground>).  Can be specified
 multiple times, for a cumulative effect.  nlma only honors up to three B<-v>
 flags; B<-vvv> is equivalent to full debug mode.
+
+=item B<--debug>, B<-D>
+
+Run checks in debug mode, implying B<--noop>.  In debug mode, a single
+check (matched with B<-m>) will be run with the --debug flag, to print out
+helpful plugin debugging messages.
+
+This is only applicable with B<--test>.
+
+=item B<--trace>, B<-DDD>
+
+Enable debug mode, but activate TRACE MODE for the check plugin run, to get
+even B<more> diagnostic output.
 
 =item B<--help>, B<-h>, B<-?>
 
