@@ -3,10 +3,10 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-	NAME                => 'Nagios::Agent',
+	NAME                => 'NLMA',
 	AUTHOR              => q{James Hunt <jhunt@synacor.com>},
-	VERSION_FROM        => 'lib/Nagios/Agent.pm',
-	ABSTRACT_FROM       => 'lib/Nagios/Agent.pm',
+	VERSION_FROM        => 'lib/NLMA.pm',
+	ABSTRACT_FROM       => 'lib/NLMA.pm',
 	($ExtUtils::MakeMaker::VERSION >= 6.3002
 		? ('LICENSE'=> 'gpl_3')
 		: ()),
@@ -22,5 +22,5 @@ WriteMakefile(
 		'Test::More' => 0,
 	},
 	dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-	clean               => { FILES => 'Nagios-Agent-*' },
+	clean               => { FILES => 'NLMA-*' },
 );

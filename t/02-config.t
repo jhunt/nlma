@@ -2,12 +2,12 @@
 
 use Test::More;
 use Test::Deep;
-use Nagios::Agent;
+use NLMA;
 
 use Sys::Hostname qw(hostname);
 
 { # Default Configuration
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/empty.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/empty.yml');
 
 	is($config->{hostname},  hostname, "<hostname> defaults to current node hostname");
 	is($config->{user},      "icinga", "<user> default");
@@ -34,7 +34,7 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Overridden Configuration
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/full.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/full.yml');
 
 	is($config->{hostname},  'fixed.host.example.com', "<hostname> override");
 	is($config->{user},      "mon-user", "<user> override");
@@ -64,17 +64,17 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Bad On-Timeout Value ('OK' not an acceptable state)
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad_ontimeout.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/bad_ontimeout.yml');
 	is($config->{on_timeout}, "CRITICAL"),
 }
 
 { # Bad On-Timeout Value (not a real state)
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad_ontimeout2.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/bad_ontimeout2.yml');
 	is($config->{on_timeout}, "CRITICAL"),
 }
 
 { # No default parents
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/no-default-parents.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/no-default-parents.yml');
 
 	# Verify that if we specify parents, but forget the 'default' parents,
 	# parse_config will Do The Right Thing (TM)
@@ -92,7 +92,7 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Bad config file
-	my ($config, $checks) = Nagios::Agent::parse_config('/path/to/nowhere');
+	my ($config, $checks) = NLMA::parse_config('/path/to/nowhere');
 	ok(!$config, "parse_config(BAD PATH) returns undef config");
 	ok(!$checks, "parse_checks(BAD PATH) returns undef checks");
 }
@@ -101,7 +101,7 @@ use Sys::Hostname qw(hostname);
 
 { # Check configuration
 	my $now = time;
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/check-config.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/check-config.yml');
 
 	is($config->{timeout},  33, "Default timeout is 33s");
 	is($config->{interval}, 44, "Default interval is 44s");
@@ -152,7 +152,7 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Check Splay
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/check-splay.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/check-splay.yml');
 
 	is($config->{startup_splay}, 10, "Startup splay is 10 seconds");
 
@@ -170,7 +170,7 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Include files
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/includes.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/includes.yml');
 
 	cmp_set([map { $_->{name} } @$checks],
 		[qw[cpu load disks database iowait apache]],
@@ -182,7 +182,7 @@ use Sys::Hostname qw(hostname);
 
 { # Including files that do not exist
 
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad-includes.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/bad-includes.yml');
 	cmp_set([map { $_->{name} } @$checks],
 		[qw[cpu load disks]],
 		"Found all 3 baseline checks");
@@ -200,7 +200,7 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Including files that override other checks
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/includes-override.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/includes-override.yml');
 
 	cmp_set([map { $_->{name} } @$checks],
 		[qw[cpu load disks newcheck]],
@@ -221,16 +221,16 @@ use Sys::Hostname qw(hostname);
 }
 
 { # Parsing a bad config should return (undef,undef)
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/bad.yml');
 
 	ok(!defined($config), "config result not defined for bad YAML");
 	ok(!defined($checks), "checks result not defined for bad YAML");
 
-	($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad-whitespace.yml');
+	($config, $checks) = NLMA::parse_config('t/data/config/bad-whitespace.yml');
 	ok(!defined($config), "config result not defined for bad whitespace");
 	ok(!defined($checks), "checks result not defined for bad whitespace");
 
-	($config, $checks) = Nagios::Agent::parse_config('t/data/config/bad-missing-command.yml');
+	($config, $checks) = NLMA::parse_config('t/data/config/bad-missing-command.yml');
 	ok(!defined($config), "config result not defined for missing command");
 	ok(!defined($checks), "checks result not defined for missing command");
 }

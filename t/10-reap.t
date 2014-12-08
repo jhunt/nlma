@@ -1,7 +1,7 @@
 #!perl
 
 use Test::More;
-use Nagios::Agent;
+use NLMA;
 use IO::String;
 use File::Temp qw/tempfile/;
 do "t/common.pl";
@@ -20,7 +20,7 @@ my $NOW = time;
 			pipe => mock_pipe("all good"),
 	});
 
-	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
 	cmp_ok($check->{ended_at}, '>', $check->{started_at}, "check ended after it started");
 	cmp_ok($check->{duration}, '>', 0, 'check duration was > 0');
 	is($check->{is_soft_state}, 0, 'OK -> OK is not a soft state');
@@ -40,7 +40,7 @@ my $NOW = time;
 			attempts      => 3,
 			pipe          => mock_pipe("still critical..."),
 	});
-	is(Nagios::Agent::reap_check($check, mock_exit(2)), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, mock_exit(2)), 0, "reap_check returns 0 on success");
 	is($check->{is_soft_state}, 0, 'After 4321/3 attempts, we are not at a soft state anymore');
 	is($check->{current},  1, 'back to 1/3 attempts');
 	is($check->{state},    2, 'Critical State');
@@ -52,7 +52,7 @@ my $NOW = time;
 			pipe => mock_pipe("returned 0x34")
 	});
 
-	is(Nagios::Agent::reap_check($check, 0x3400), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, 0x3400), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state is now 3");
 }
 
@@ -63,7 +63,7 @@ my $NOW = time;
 			pipe => mock_pipe("non-local exit")
 	});
 
-	is(Nagios::Agent::reap_check($check, 0x3401), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, 0x3401), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state is now 3");
 	is($check->{output}, "check timed out (exceeded NLMA timeout)", 'KILLED should return timed-out output');
 }
@@ -79,7 +79,7 @@ my $NOW = time;
 			pipe       => mock_pipe(''), # no output
 	});
 
-	is(Nagios::Agent::reap_check($check, mock_exit(42)), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, mock_exit(42)), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state is UNKNOWN if all we have is STDERR");
 	is($check->{output}, "ERROR: this is a fail message");
 }
@@ -95,7 +95,7 @@ my $NOW = time;
 			pipe        => mock_pipe(''), # no output
 	});
 
-	is(Nagios::Agent::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state promotes to UNKNOWN if there is no STDOUT");
 	is($check->{output}, "ERROR: errors are standard");
 }
@@ -106,7 +106,7 @@ my $NOW = time;
 			pipe => mock_pipe(''), # no output
 	});
 
-	is(Nagios::Agent::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, mock_exit(1)), 0, "reap_check returns 0 on success");
 	is($check->{state}, 3, "check state promotes to UNKNOWN if there is no STDOUT");
 	is($check->{output}, "(no check output)");
 }
@@ -116,7 +116,7 @@ my $NOW = time;
 			name => 'no_output',
 			pipe => mock_pipe('')
 	});
-	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
 	is($check->{output}, "(no check output)", "no output message");
 }
 
@@ -127,7 +127,7 @@ my $NOW = time;
 			pipe => 'not-a-file-descriptor!'
 	});
 	diag "You should see a 'read() on unopened filehandle' warning below...";
-	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check now returns 0 on read fail");
+	is(NLMA::reap_check($check, 0x0000), 0, "reap_check now returns 0 on read fail");
 	is($check->{output}, "(no check output)", "no output message");
 }
 
@@ -138,7 +138,7 @@ my $NOW = time;
 			state => 1,
 			pipe => mock_pipe('still warning')
 	});
-	is(Nagios::Agent::reap_check($check, 0x0100), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, 0x0100), 0, "reap_check returns 0 on success");
 	is($check->{is_soft_state}, 0, "WARNING -> WARNING is a hard state");
 }
 
@@ -147,7 +147,7 @@ my $NOW = time;
 			name => 'multiline',
 			pipe => mock_pipe(join("\n", qw(this is output on multiple lines))),
 	});
-	is(Nagios::Agent::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
+	is(NLMA::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
 	is($check->{output}, "this / is / output / on / multiple / lines");
 }
 

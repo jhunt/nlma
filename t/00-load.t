@@ -3,7 +3,7 @@
 use Test::More tests => 1;
 
 BEGIN {
-    use_ok( 'Nagios::Agent' );
+    use_ok( 'NLMA' );
 }
 
-diag( "Testing Nagios::Agent $Nagios::Agent::VERSION, Perl $], $^X" );
+diag( "Testing NLMA $NLMA::VERSION, Perl $], $^X" );

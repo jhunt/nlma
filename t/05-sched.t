@@ -1,7 +1,7 @@
 #!perl
 
 use Test::More;
-use Nagios::Agent;
+use NLMA;
 
 { # Schedule check, normal
 	my $check = {
@@ -12,7 +12,7 @@ use Nagios::Agent;
 		started_at     => 3000,
 	};
 
-	Nagios::Agent::schedule_check($check);
+	NLMA::schedule_check($check);
 	is_deeply($check, {
 			name           => "test",
 			interval       => 100,
@@ -25,7 +25,7 @@ use Nagios::Agent;
 	$check->{started_at} = 3105;
 	$check->{is_soft_state} = 1;
 
-	Nagios::Agent::schedule_check($check);
+	NLMA::schedule_check($check);
 	is_deeply($check, {
 			name           => "test",
 			interval       => 100,
@@ -38,7 +38,7 @@ use Nagios::Agent;
 	my $NOW = time;
 	$check->{started_at} = $check->{next_run} = 0;
 	$check->{is_soft_state} = 0;
-	Nagios::Agent::schedule_check($check);
+	NLMA::schedule_check($check);
 	cmp_ok($check->{next_run}, '>=', $NOW - 5 + 100, "next_run scheduled relative to now");
 }
 

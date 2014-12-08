@@ -3,7 +3,7 @@
 $ENV{PATH} = "/bin:/usr/bin";
 
 use Test::More;
-use Nagios::Agent;
+use NLMA;
 
 my $SEND_NSCA = "t/bin/send_nsca";
 
@@ -12,7 +12,7 @@ my $SEND_NSCA = "t/bin/send_nsca";
 	my $FILE = "t/tmp/1.2.3.4.5667.nsca";
 	unlink $FILE if -f $FILE;
 
-	Nagios::Agent::send_nsca("1.2.3.4:5667", $SEND_NSCA,
+	NLMA::send_nsca("1.2.3.4:5667", $SEND_NSCA,
 		{
 			hostname => 'mock_host',
 			name => 'check1',

@@ -1,4 +1,4 @@
-package Nagios::Agent;
+package NLMA;
 
 use warnings;
 use strict;
@@ -26,7 +26,7 @@ my %STATE_CODES = (
 my %LOCKS = ();
 my $OOB_PREFIX = "oob";
 
-our $VERSION = '2.12';
+our $VERSION = '2.13';
 
 sub MAX { my ($a, $b) = @_; ($a > $b ? $a : $b); }
 sub MIN { my ($a, $b) = @_; ($a < $b ? $a : $b); }
@@ -120,7 +120,7 @@ sub run_check
 	} else {
 		if($check->{lock}) {
 			INFO("locking $check->{lock} for execution of $check->{name}");
-			Nagios::Agent::lock($check->{lock}, locked_by => $check->{name});
+			NLMA::lock($check->{lock}, locked_by => $check->{name});
 		}
 	}
 
@@ -369,7 +369,7 @@ sub parse_config
 	my $yaml = slurp($file) or return undef;
 	my ($config, $checks) = eval { Load($yaml) } or return undef;
 	$config->{startup}  = gettimeofday unless $config->{startup};
-	$config->{version}  = $Nagios::Agent::VERSION;
+	$config->{version}  = $NLMA::VERSION;
 	$config->{warnings} = [];
 	$config->{errors}   = [];
 
@@ -1046,11 +1046,11 @@ sub keymaster
 
 =head1 NAME
 
-Nagios::Agent - NLMA Local Monitoring Agent
+NLMA - NLMA Local Monitoring Agent
 
 =head1 DESCRIPTION
 
-The Nagios::Agent module implements the guts of the B<nlma> command.
+The NLMA module implements the guts of the B<nlma> command.
 Administrators looking to configure or use nlma should see nlma(1).
 
 =head1 METHODS
@@ -1059,9 +1059,9 @@ Administrators looking to configure or use nlma should see nlma(1).
 
 =item B<start($class, $config_file, $foreground)>
 
-Initiates the Nagios::Agent scheduling loop, like this:
+Initiates the NLMA scheduling loop, like this:
 
-  Nagios::Agent->start("/etc/nlma.yml")
+  NLMA->start("/etc/nlma.yml")
 
 The $config_file argument will be turned into an absolute path if it
 is not, so that SIGHUP reconfiguration still works when daemonized
@@ -1079,7 +1079,7 @@ process does not fork into the background.  See nlma(1) for details.
 
 Ignore scheduling and run all configured checks, for testing.
 
-  Nagios::Agent->runall("/etc/nlma.yml")
+  NLMA->runall("/etc/nlma.yml")
 
 After each check has been run, it will not be re-scheduled.
 
@@ -1089,14 +1089,14 @@ Submits a single check result, out-of-band.  This is used primarily
 by the B<alert> utility for shell scripts and other code to integrate
 with monitoring.
 
-  Nagios::Agent->submit_oob("/etc/nlma.yml", {
+  NLMA->submit_oob("/etc/nlma.yml", {
       host     => undef, # can be overridden
       service  => 'mlb_ripper',
       code     => 1
       output   => 'check output',
   });
 
-Normally, the B<host> option doesn't need to be specified; Nagios::Agent
+Normally, the B<host> option doesn't need to be specified; NLMA
 will fill in the auto-detected local hostname for you.  The option is
 there to allow override an on-behalf-of submission.
 
@@ -1188,7 +1188,7 @@ or return B<undef> if an error condition occurs.
 
 =item B<parse_config($file)>
 
-Parse the Nagios::Agent YAML configuration, supplying default values
+Parse the NLMA YAML configuration, supplying default values
 where appropriate.  Returns two values, the global configuration and
 an array of normalized check definitions.
 
@@ -1291,7 +1291,7 @@ locked, when it was locked, and what check it was locked by.
 
 =head1 AUTHOR
 
-Nagios::Agent was written by James Hunt <jhunt@synacor.com>
+NLMA was written by James Hunt <jhunt@synacor.com>
 
 =head1 LICENSE
 

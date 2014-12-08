@@ -8,7 +8,7 @@ Getopt::Long::Configure('bundling');
 use Data::Dumper;
 use YAML;
 use Pod::Usage;
-use Nagios::Agent::Table;
+use NLMA::Table;
 use POSIX qw/strftime/;
 
 my (@STATUS, @COLORS, %OPTIONS);
@@ -178,7 +178,7 @@ if ($OPTIONS{schedule}) {
 	print "  showing ".@filtered."/".@$checks." checks\n";
 	print "\n";
 
-	my $table = Nagios::Agent::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID', "Locked By"]);
+	my $table = NLMA::Table->new(['Host', 'Name', 'Group', 'Last Run','Duration','Status', 'Next Run', 'PID', "Locked By"]);
 	for (@filtered) {
 		my ($host) = $_->{hostname};
 		$host = "<localhost>" if $host eq $conf->{hostname};

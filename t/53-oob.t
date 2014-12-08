@@ -3,17 +3,17 @@
 use Test::More;
 use Test::Deep;
 use Test::MockModule;
-use Nagios::Agent;
+use NLMA;
 
 { # OOB alert processing
 	my $check;
 	my $CONFIG = "t/data/config/oob.yml";
 
-	my $mocker = Test::MockModule->new("Nagios::Agent");
+	my $mocker = Test::MockModule->new("NLMA");
 	# snag send_nsca()'s arg3
 	$mocker->mock(send_nsca => sub { $check = $_[2]; });
 
-	Nagios::Agent->submit_oob($CONFIG, {
+	NLMA->submit_oob($CONFIG, {
 		service  => "test_service",
 		code     => 0,
 		output   => "looks good"
@@ -25,14 +25,14 @@ use Nagios::Agent;
 		output      => "looks good (submitted via default-host)"
 	}, "Check attributes for localhost");
 
-	Nagios::Agent->submit_oob($CONFIG, {
+	NLMA->submit_oob($CONFIG, {
 		service  => "oob_thing",
 		code     => 0,
 		output   => "fine fine fine",
 	});
 	is($check->{name}, "oob_thing", "Prefixing de-duplication");
 
-	Nagios::Agent->submit_oob($CONFIG, {
+	NLMA->submit_oob($CONFIG, {
 		service  => "other-guy",
 		code     => 1,
 		output   => "WARNING",

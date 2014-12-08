@@ -1,8 +1,8 @@
 NLMA
 ====
 
-Nagios::Agent is a host-side monitoring daemon that schedules and runs
-check plugins locally and submits check results to one or more Nagios
+NLMA is a host-side monitoring daemon that schedules and runs check
+plugins locally and submits check results to one or more Nagios/Icinga
 parent servers via NSCA.
 
 INSTALLATION
@@ -21,7 +21,7 @@ SUPPORT AND DOCUMENTATION
 After installing, you can find documentation for this module with the
 perldoc command.
 
-    perldoc Nagios::Agent
+    perldoc NLMA
 
 There is a man page for the nlma utility as well.
 

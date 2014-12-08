@@ -2,7 +2,7 @@
 
 use Test::More;
 do "t/common.pl";
-use Nagios::Agent;
+use NLMA;
 use File::Temp qw(tempfile);
 
 plan skip_all => "Set TEST_ALL to enable drop_privs tests" unless TEST_ALL();
@@ -22,7 +22,7 @@ plan skip_all => "Run the test suite as root to enable drop_privs tests"
 
 	my $pid = fork;
 	if ($pid == 0) {
-		Nagios::Agent::drop_privs("nlma", "nlma");
+		NLMA::drop_privs("nlma", "nlma");
 		print $fh "EUID:$>\n";
 		print $fh "RUID:$<\n";
 		print $fh "EGID:$)\n";

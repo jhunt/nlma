@@ -1,14 +1,14 @@
 #!perl
 
 use Test::More;
-use Nagios::Agent;
+use NLMA;
 use YAML::XS;
 
 { # basic dump to writable location
-	my ($config, $checks) = Nagios::Agent::parse_config("t/data/config/dump.yml");
+	my ($config, $checks) = NLMA::parse_config("t/data/config/dump.yml");
 
 	qx(rm -f t/tmp/nlma.*.yml);
-	Nagios::Agent::dump_config($config, $checks);
+	NLMA::dump_config($config, $checks);
 	my $file = qx(ls t/tmp/nlma.*.yml); chomp $file;
 	isnt($file, "", 'dump_config created a file');
 	ok(-f $file, "dump_config created a real file");

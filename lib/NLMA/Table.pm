@@ -1,4 +1,4 @@
-package Nagios::Agent::Table;
+package NLMA::Table;
 
 use strict;
 use warnings;
@@ -123,7 +123,7 @@ sub dump
 
 =head1 NAME
 
-Nagios::Agent::Table
+NLMA::Table
 
 =head1 FUNCTIONS
 

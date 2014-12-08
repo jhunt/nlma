@@ -6,7 +6,7 @@ use warnings;
 use Getopt::Long qw/:config bundling/;
 use YAML::XS qw/Dump/;
 use Pod::Usage;
-use Nagios::Agent;
+use NLMA;
 
 my %OPTIONS = (
 	config => '/etc/nlma.yml'
@@ -27,7 +27,7 @@ sub format_time
 	return $s . 's';
 }
 
-my ($config, $checks) = Nagios::Agent::parse_config($OPTIONS{config});
+my ($config, $checks) = NLMA::parse_config($OPTIONS{config});
 chomp(my $fqdn = qx(/bin/hostname -f));
 
 my %data;

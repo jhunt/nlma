@@ -2,10 +2,10 @@
 
 use Test::More;
 use Test::Deep;
-use Nagios::Agent;
+use NLMA;
 
 {
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/grouped.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/grouped.yml');
 	my $filtered;
 
 	$checks = [sort { $a->{name} cmp $b->{name} } @$checks];
@@ -17,43 +17,43 @@ use Nagios::Agent;
 		], [qw/feeders feeders filers default/],
 		"Check Groups parsed");
 
-	$filtered = Nagios::Agent::filter_checks($checks, "feeders,filers");
+	$filtered = NLMA::filter_checks($checks, "feeders,filers");
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[qw/check1 check2 check3/],
 		"Filtered to just feeders and filers");
 
-	$filtered = Nagios::Agent::filter_checks($checks, "feeders, filers");
+	$filtered = NLMA::filter_checks($checks, "feeders, filers");
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[qw/check1 check2 check3/],
 		"Filtered to just feeders and filers (extra whitespace)");
 
-	$filtered = Nagios::Agent::filter_checks($checks, "filers");
+	$filtered = NLMA::filter_checks($checks, "filers");
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[qw/check3/],
 		"Filtered to just filers");
 
-	$filtered = Nagios::Agent::filter_checks($checks, undef);
+	$filtered = NLMA::filter_checks($checks, undef);
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[qw/check4/],
 		"Filtered to ungrouped checks");
 
-	$filtered = Nagios::Agent::filter_checks($checks, "all");
+	$filtered = NLMA::filter_checks($checks, "all");
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[qw/check1 check2 check3 check4/],
 		"Filtered to all checks");
 
-	$filtered = Nagios::Agent::filter_checks($checks, "all,feeders");
+	$filtered = NLMA::filter_checks($checks, "all,feeders");
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[qw/check1 check2 check3 check4/],
 		"Filtered to all (extra 'feeders' group) checks");
 
-	$filtered = Nagios::Agent::filter_checks($checks, "bogus");
+	$filtered = NLMA::filter_checks($checks, "bogus");
 	cmp_deeply(
 		[map { $_->{name} } @$filtered],
 		[],
@@ -61,7 +61,7 @@ use Nagios::Agent;
 }
 
 { # global group configs
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/grouped.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/grouped.yml');
 	cmp_deeply({
 			name         => 'default',
 			min_interval => 300,
@@ -89,7 +89,7 @@ use Nagios::Agent;
 }
 
 { # per-group splay
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/grouped.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/grouped.yml');
 	$checks = [sort { $a->{name} cmp $b->{name} } @$checks];
 
 	is(abs($checks->[0]{next_run} - $checks->[1]{next_run}), 120,

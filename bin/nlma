@@ -10,7 +10,7 @@
 use warnings;
 use strict;
 
-use Nagios::Agent;
+use NLMA;
 use Getopt::Long;
 use Cwd qw(abs_path);
 use Log::Log4perl qw(:easy);
@@ -134,7 +134,7 @@ if ($opt{runall}) {
 		exit 1;
 	}
 
-	my ($config, $checks) = Nagios::Agent::parse_config($opt{config});
+	my ($config, $checks) = NLMA::parse_config($opt{config});
 	if (!$config) {
 		print STDERR "$opt{config}: bad configuration file (check YAML syntax)\n";
 		exit 1;
@@ -142,10 +142,10 @@ if ($opt{runall}) {
 
 	$opt{only} = 'default' unless $opt{only};
 	$opt{only} = 'all' if $opt{all};
-	$checks = Nagios::Agent::filter_checks($checks, $opt{only}, $opt{match});
+	$checks = NLMA::filter_checks($checks, $opt{only}, $opt{match});
 
-	print "nlma v$Nagios::Agent::VERSION starting up (running as $config->{user}:$config->{group})\n";
-	Nagios::Agent::drop_privs($config->{user}, $config->{group});
+	print "nlma v$NLMA::VERSION starting up (running as $config->{user}:$config->{group})\n";
+	NLMA::drop_privs($config->{user}, $config->{group});
 
 	if ($opt{debug}) {
 		if(scalar @$checks > 1) {
@@ -158,7 +158,7 @@ if ($opt{runall}) {
 	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
 	print "\n";
 
-	Nagios::Agent->runall($config, $checks, $opt{noop}, $opt{debug});
+	NLMA->runall($config, $checks, $opt{noop}, $opt{debug});
 	print "NOOP: running under --noop; not submitting check results.\n" if $opt{noop};
 
 } else {
@@ -181,7 +181,7 @@ if ($opt{runall}) {
 		Log::Log4perl->easy_init($level);
 		ALWAYS("log level set to $name");
 	}
-	Nagios::Agent->start($opt{config}, $opt{foreground});
+	NLMA->start($opt{config}, $opt{foreground});
 }
 
 =head1 NAME

@@ -10,7 +10,7 @@
 use warnings;
 use strict;
 
-use Nagios::Agent;
+use NLMA;
 use Getopt::Long;
 use Log::Log4perl qw(:easy);
 
@@ -98,7 +98,7 @@ my $host = $opt{host} || 'localhost';
 print "Submitting $opt{status} alert for $host/$opt{service}: $opt{message}\n"
 	if $opt{verbose};
 
-Nagios::Agent->submit_oob($opt{config}, {
+NLMA->submit_oob($opt{config}, {
 	host    => $opt{host},
 	service => $opt{service},
 	code    => $CODES{uc $opt{status}},

@@ -2,7 +2,7 @@
 
 use Test::More;
 use Test::Deep;
-use Nagios::Agent;
+use NLMA;
 
 my $NOW = time;
 
@@ -84,7 +84,7 @@ my $NOW = time;
 		},
 	];
 
-	is(Nagios::Agent::merge_check_defs($old, $new), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs($old, $new), 0, "merge_check_defs returns 0");
 
 #	$old->[0]{started_at} = $old->[0]{ended_at} = $old->[0]{next_run}   = 42;
 	cmp_deeply($old->[0], {
@@ -185,7 +185,7 @@ my $NOW = time;
 		}
 	];
 
-	is(Nagios::Agent::merge_check_defs($old, $old), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs($old, $old), 0, "merge_check_defs returns 0");
 
 	cmp_deeply($old->[0], {
 			name        => "check1",
@@ -259,15 +259,15 @@ my $NOW = time;
 			sudo     => 'root', # CHANGED
 	};
 
-	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
 	is($old->{sudo}, "root", "sudo attribute set");
 
 	$new->{sudo} = "xyzzy";
-	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
 	is($old->{sudo}, "xyzzy", "sudo attribute changed");
 
 	delete $new->{sudo};
-	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
 	is($old->{sudo}, undef, "sudo attribute unset");
 }
 
@@ -302,15 +302,15 @@ my $NOW = time;
 			lock     => 'test1',
 	};
 
-	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
 	is($old->{lock}, "test1", "lock attribute set");
 
 	$new->{lock} = "update1";
-	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
 	is($old->{lock}, "update1", "lock atttribute updated");
 
 	delete $new->{lock};
-	is(Nagios::Agent::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
+	is(NLMA::merge_check_defs([$old], [$new]), 0, "merge_check_defs returns 0");
 	is($old->{lock}, undef, "lock atttribute unset");
 }
 
