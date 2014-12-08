@@ -8,7 +8,7 @@ WriteMakefile(
 	VERSION_FROM        => 'lib/Nagios/Agent.pm',
 	ABSTRACT_FROM       => 'lib/Nagios/Agent.pm',
 	($ExtUtils::MakeMaker::VERSION >= 6.3002
-		? ('LICENSE'=> 'perl')
+		? ('LICENSE'=> 'gpl_3')
 		: ()),
 	PL_FILES            => {},
 	EXE_FILES           => [qw(

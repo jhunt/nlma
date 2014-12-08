@@ -1,6 +1,0 @@
-#!/bin/bash
-set -ex
-if [[ -z "$1" ]]; then
-	set -- runway/nlma.yml
-fi
-sudo perl -Ilib ./bin/nlma -tv -c "$@"
