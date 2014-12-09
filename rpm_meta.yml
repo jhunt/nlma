@@ -1,4 +1,2 @@
 requires:
  - nsca-send
-obsoletes:
- - perl-Nagios-Agent
