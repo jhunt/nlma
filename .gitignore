@@ -19,3 +19,4 @@ debian/nlma
 debian/files
 debian/*.log
 debian/*.substvars
+debian/*.debhelper

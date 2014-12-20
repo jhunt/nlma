@@ -5,6 +5,7 @@ bin/nlma-config
 bin/nlma-debug
 bin/nlma-timeout
 COPYING
+etc/nlma.yml
 lib/NLMA.pm
 lib/NLMA/Table.pm
 Makefile

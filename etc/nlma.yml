@@ -1,0 +1,29 @@
+# nlma.yml - NLMA Configuration
+#
+# !!! THIS IS A SAMPLE CONFIG; HACK TO TASTE !!!
+#
+
+#######################################################################
+# GLOBAL CONFIGURATION
+---
+# NSCA Endpoints - one or more Nagios servers to submit results to
+parents:
+  - localhost:5667
+
+# Logging configuration (syslog)
+log:
+  level:    info
+  facility: daemon
+
+# Path to (and arguments for) the send_nsca utility
+send_nsca: /usr/bin/send_nsca -c /etc/icinga/send_nsca.cfg
+
+#######################################################################
+# CHECK DEFINITIONS
+---
+check_something:
+  command:  /usr/local/monitor/bin/check_dummy --status OK --message "placeholder"
+  interval: 300 # default
+  timeout:  30  # default
+
+# vim:ft=yaml:ts=2:et
