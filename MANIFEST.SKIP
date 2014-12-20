@@ -1,0 +1,9 @@
+.gitignore
+.git
+MANIFEST.SKIP
+NLMA-*.tar.gz
+t/tmp
+nlma.spec
+debian
+rpm_files
+rpm_meta.yml
