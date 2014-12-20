@@ -5,7 +5,7 @@ use NLMA;
 use YAML::XS;
 
 { # basic dump to writable location
-	qx(mkdir t/tmp);
+	qx(mkdir -p t/tmp);
 	my ($config, $checks) = NLMA::parse_config("t/data/config/dump.yml");
 
 	qx(rm -f t/tmp/nlma.*.yml);
