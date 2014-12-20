@@ -5,19 +5,24 @@ Priority: optional
 Homepage: http://nlma.jameshunt.us
 Standards-Version: 3.9.5
 Build-Depends: debhelper (>= 8),
+               libcapture-tiny-perl,
+               libio-string-perl,
+               liblog-dispatch-perl,
+               liblog-log4perl-perl,
                libtest-deep-perl,
+               libtest-mockmodule-perl,
+               libtest-simple-perl,
                libyaml-libyaml-perl,
-               perl,
-               perl-base (>= 5.14.2),
-               perl-modules
-
+               libyaml-perl,
+               perl
 
 Package: nlma
 Architecture: all
-Depends: libyaml-libyaml-perl,
+Depends: liblog-dispatch-perl,
+         liblog-log4perl-perl,
+         libyaml-libyaml-perl,
+         libyaml-perl,
          perl,
-         perl-base (>= 5.14.2),
-         perl-modules,
          ${misc:Depends}
 Description: Local Monitoring Agent
  NLMA (a recursive acronym that expands to 'NLMA Local Monitoring Agent'),

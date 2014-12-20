@@ -16,5 +16,6 @@ cover_db
 t/tmp/*
 
 debian/nlma
+debian/files
 debian/*.log
 debian/*.substvars

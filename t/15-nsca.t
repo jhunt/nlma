@@ -8,7 +8,7 @@ use NLMA;
 my $SEND_NSCA = "t/bin/send_nsca";
 
 {
-
+	qx(mkdir t/tmp);
 	my $FILE = "t/tmp/1.2.3.4.5667.nsca";
 	unlink $FILE if -f $FILE;
 
