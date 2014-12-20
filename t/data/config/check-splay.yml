@@ -10,7 +10,7 @@ check_raid:
   interval: 1500
 check_mem:
   command:  memory
-  interval: 300
+  interval: 301
 check_disk:
   command:  disk
   interval: 300

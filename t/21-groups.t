@@ -90,12 +90,12 @@ use NLMA;
 
 { # per-group splay
 	my ($config, $checks) = NLMA::parse_config('t/data/config/grouped.yml');
-	$checks = [sort { $a->{name} cmp $b->{name} } @$checks];
+	$checks = { map { $_->{name} => $_ } @$checks };
 
-	is(abs($checks->[0]{next_run} - $checks->[1]{next_run}), 120,
-		"splay between feeders checks is 120");
-	is($checks->[0]{next_run}, $checks->[2]{next_run},
-		"all groups start at the same point in time");
+	is(abs($checks->{check1}{next_run} - $checks->{check2}{next_run}), 120,
+		"splay between feeders checks (check1/check2) is 120");
+	is($checks->{check3}{next_run}, $checks->{check4}{next_run},
+		"all groups start at the same point in time (check3/check4)");
 }
 
 done_testing;

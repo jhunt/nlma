@@ -500,7 +500,7 @@ sub parse_config
 	for my $cname (keys %$checks) {
 		DEBUG("parsed check definition for $cname");
 		my $check = $checks->{$cname};
-		if (!$check || !exists $check->{command}) {
+		if (!$check || ref($check) ne 'HASH' || !exists $check->{command}) {
 			ERROR("check '$cname' is missing command definition");
 			return undef;
 		}
