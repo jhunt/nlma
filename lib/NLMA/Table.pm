@@ -123,7 +123,7 @@ sub dump
 
 =head1 NAME
 
-NLMA::Table
+NLMA::Table - Colorized, tabularization of data
 
 =head1 FUNCTIONS
 
