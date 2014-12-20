@@ -1,0 +1,5 @@
+nlma (2.13-1) trusty; urgency=low
+
+  * Initial packaging for Debian
+
+ -- James Hunt <james@jameshunt.us>  Sat, 20 Dec 2014 15:07:37 -0500

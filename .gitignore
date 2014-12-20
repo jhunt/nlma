@@ -14,3 +14,7 @@ NLMA-*
 cover_db
 .*.swp
 t/tmp/*
+
+debian/nlma
+debian/*.log
+debian/*.substvars

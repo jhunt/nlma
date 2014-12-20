@@ -1,0 +1,25 @@
+Source: nlma
+Maintainer: James Hunt <james@jameshunt.us>
+Section: admin
+Priority: optional
+Homepage: http://nlma.jameshunt.us
+Standards-Version: 3.9.5
+Build-Depends: debhelper (>= 8),
+               libtest-deep-perl,
+               libyaml-libyaml-perl,
+               perl,
+               perl-base (>= 5.14.2),
+               perl-modules
+
+
+Package: nlma
+Architecture: all
+Depends: libyaml-libyaml-perl,
+         perl,
+         perl-base (>= 5.14.2),
+         perl-modules,
+         ${misc:Depends}
+Description: Local Monitoring Agent
+ NLMA (a recursive acronym that expands to 'NLMA Local Monitoring Agent'),
+ is a small daemon that can run everywhere to feed check result data into a
+ centralized monitoring system like Nagios, Icinga or Bolo.
