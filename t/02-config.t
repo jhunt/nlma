@@ -236,7 +236,7 @@ use Sys::Hostname qw(hostname);
 }
 
 subtest "merging global + check env variables" => sub {
-	my ($config, $checks) = Nagios::Agent::parse_config('t/data/config/env_merging.yml');
+	my ($config, $checks) = NLMA::parse_config('t/data/config/env_merging.yml');
 
 	cmp_deeply $config, superhashof({
 			env => { env_test1 => 'true', env_test2 => 'false' },
