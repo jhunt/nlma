@@ -12,6 +12,7 @@ use File::Temp qw(tempfile);
 use IO::Select;
 use Time::HiRes qw(gettimeofday usleep);
 use YAML;
+use Hash::Merge qw(merge);
 
 use Log::Log4perl qw(:easy);
 use Log::Dispatch::Syslog;
@@ -161,7 +162,8 @@ sub run_check
 	}
 
 	if ($run_as) {
-		$command = "/usr/bin/sudo -n -u $run_as /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
+		my $env_string = join((map { "$_=$check->{env}{$_}" } keys %{$check->{env}}), " ");
+		$command = "/usr/bin/sudo -n -u $run_as $env_string /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
 	}
 
 	INFO("executing '$command' via /bin/sh -c");
@@ -418,6 +420,7 @@ sub parse_config
 		$config->{interval} = 300;
 		DEBUG("no config for interval: using default of $config->{interval}s");
 	}
+
 	if (!exists $config->{plugin_root}) {
 		DEBUG("no plugin_root configured; all check commands must be absolute paths!");
 	}
@@ -504,7 +507,7 @@ sub parse_config
 			ERROR("check '$cname' is missing command definition");
 			return undef;
 		}
-		$check->{env} ||= {}; # environment variables
+		$check->{env} = merge($check->{env} || {}, $config->{env}); # environment variables
 		$check->{current} = 1; # current attempt
 
 		# Use config key as name if not overridden

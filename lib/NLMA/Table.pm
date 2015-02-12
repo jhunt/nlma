@@ -147,4 +147,6 @@ NLMA::Table
 
 =item new
 
+=back
+
 =cut
