@@ -54,6 +54,51 @@ sub clean_check_output
 	return $buf;
 }
 
+sub render_cmd
+{
+	my ($check, $root, $debug) = @_;
+
+	my $run_as  = $check->{sudo};
+	my $command = $check->{command};
+
+	$debug    = 0 unless defined $debug;
+	$command .= ' -D'x$debug;
+
+	if (substr($command, 0, 1) ne "/") {
+		if ($root) {
+			$command = "$root/$command";
+		} else {
+			WARN("check $check->{name} has relative command, but no plugin_root specified!!");
+		}
+	}
+
+	# check for existence of plugin executable (but only for absolute paths)
+	if ($command =~ m|^(/[^\s]*)|) {
+		my $bin = $1;
+		INFO("Checking $bin for -e, -f, -r and -x");
+		my $error;
+		if    (!-e $bin) { $error = "not found (-e)"      }
+		elsif (!-f $bin) { $error = "not a file (-f)"     }
+		elsif (!-r $bin) { $error = "not readable (-r)"   }
+		elsif (!-x $bin) { $error = "not executable (-x)" }
+
+		if ($error) {
+			ERROR("executable for $check->{name} ($bin) $error");
+			$command = "/bin/echo 'UNKNOWN - plugin \"$bin\" $error'; exit 3";
+
+			# skip sudo, if specified (we don't need to sudo echo)
+			$run_as = undef;
+		}
+	}
+
+	if ($run_as) {
+		my $env_string = join(" ", map { "$_=$check->{env}{$_}" } keys %{$check->{env}});
+		$command = "/usr/bin/sudo -n -u $run_as $env_string /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
+	}
+
+	return $command;
+}
+
 sub drop_privs
 {
 	my ($user, $group) = @_;
@@ -128,43 +173,7 @@ sub run_check
 	my ($readfd, $writefd);
 	pipe $readfd, $writefd;
 
-	my $run_as  = $check->{sudo};
-	my $command = $check->{command};
-
-	$debug    = 0 unless defined $debug;
-	$command .= ' -D'x$debug;
-
-	if (substr($command, 0, 1) ne "/") {
-		if ($root) {
-			$command = "$root/$command";
-		} else {
-			WARN("check $check->{name} has relative command, but no plugin_root specified!!");
-		}
-	}
-
-	# check for existence of plugin executable (but only for absolute paths)
-	if ($command =~ m|^(/[^\s]*)|) {
-		my $bin = $1;
-		INFO("Checking $bin for -e, -f, -r and -x");
-		my $error;
-		if    (!-e $bin) { $error = "not found (-e)"      }
-		elsif (!-f $bin) { $error = "not a file (-f)"     }
-		elsif (!-r $bin) { $error = "not readable (-r)"   }
-		elsif (!-x $bin) { $error = "not executable (-x)" }
-
-		if ($error) {
-			ERROR("executable for $check->{name} ($bin) $error");
-			$command = "/bin/echo 'UNKNOWN - plugin \"$bin\" $error'; exit 3";
-
-			# skip sudo, if specified (we don't need to sudo echo)
-			$run_as = undef;
-		}
-	}
-
-	if ($run_as) {
-		my $env_string = join((map { "$_=$check->{env}{$_}" } keys %{$check->{env}}), " ");
-		$command = "/usr/bin/sudo -n -u $run_as $env_string /usr/bin/nlma-timeout -t $check->{timeout} -n '$check->{hostname}/$check->{name}' -- $command";
-	}
+	my $command = render_cmd($check, $root, $debug);
 
 	INFO("executing '$command' via /bin/sh -c");
 
@@ -1147,18 +1156,24 @@ Attempts to drop user privileges by switching the effective UID and
 GID to the passed user and group.  If the process is already executing
 under those effective IDs, setuid and/or setgid are not called.
 
-=item B<run_check($check, $root)>
+=item B<render_cmd($check, $root, $debug)>
 
-Fork a child process, with a uni-directional pipe, and execute the
-check plugin command.  This function is responsible for keeping
-track of the child process' PID, and setting up the soft and hard
-timeout deadlines.
+Take a check, and generate the comand to be run by NLMA.
+
+Performs heuristics to ensure the command is in fact runnable.
 
 If the check has been configured to run via sudo, the appropriate
 sudo invocation (complete with -n) is constructed.
 
 If $root is specified, it will be used as an absolute path to
 prepend relative path command definitions.
+
+=item B<run_check($check, $root)>
+
+Fork a child process, with a uni-directional pipe, and execute the
+check plugin command.  This function is responsible for keeping
+track of the child process' PID, and setting up the soft and hard
+timeout deadlines.
 
 =item B<reap_check($check, $status)>
 
