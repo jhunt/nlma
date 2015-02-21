@@ -1,0 +1,43 @@
+---
+hostname: fixed.host.example.com
+user: nlma
+group: nlma
+pid_file: /path/to/pid.file
+parents:
+  default:
+    - df01.example.com
+    - df02.example.com
+send_nsca: /opt/other/send_nsca -c /etc/nsa.cfg
+
+timeout: 75
+on_timeout: warning
+interval: 240
+startup_splay: 17
+env:
+  env_test1: true
+  env_test2: false
+
+plugin_root: /opt/plugin/root
+dump: /usr/share
+log:
+  level: info
+  facility: authpriv
+
+checkin:
+  service: whats-up
+  interval: 123
+
+errlog: /fixme/remove
+
+---
+
+check1:
+  command: dummy
+check2:
+  env:
+    local_env: truish
+  command: dummy
+check3:
+  env:
+    env_test1: false
+  command: dummy

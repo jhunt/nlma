@@ -235,6 +235,41 @@ use Sys::Hostname qw(hostname);
 	ok(!defined($checks), "checks result not defined for missing command");
 }
 
+subtest "merging global + check env variables" => sub {
+	my ($config, $checks) = NLMA::parse_config('t/data/config/env_merging.yml');
+
+	cmp_deeply $config, superhashof({
+			env => { env_test1 => 'true', env_test2 => 'false' },
+		}), "config result contains top level env hash for global envrionment settings";
+
+	cmp_deeply $checks, bag(
+		superhashof({ # check1 tests pulling defaults into a check without an env
+			name => 'check1',
+			env => {
+				env_test1 => 'true',
+				env_test2 => 'false',
+				MONITOR_FEEDER_TARGETS => 'df01.example.com,df02.example.com',
+			}
+		}),
+		superhashof({ # check2 tests merging defaults with check-specific env
+			name => 'check2',
+			env => {
+				env_test1 => 'true',
+				env_test2 => 'false',
+				local_env => 'truish',
+				MONITOR_FEEDER_TARGETS => 'df01.example.com,df02.example.com',
+			}
+		}),
+		superhashof({ # check3 tests overwiting a default with a check-specific env
+			name => 'check3',
+			env => {
+				env_test1 => 'false',
+				env_test2 => 'false',
+				MONITOR_FEEDER_TARGETS => 'df01.example.com,df02.example.com',
+			}
+		}),
+	), "check definitions have env variables merged correctly" or diag explain $checks;
+};
 
 
 done_testing;
