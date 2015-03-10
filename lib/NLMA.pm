@@ -119,7 +119,7 @@ sub daemonize
 	DEBUG("daemonizing");
 
 	open(SELFLOCK, "<$0") or die "Couldn't find $0: $!\n";
-	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another nlma daemon running?\n";
+	flock(SELFLOCK, LOCK_EX | LOCK_NB) or die "Lock failed; is another nlma daemon running?\nShawn, are you sure you didn't mean to add the '-t' flag?\n";
 	open(PIDFILE, ">$pid_file") or die "Couldn't open $pid_file: $!\n";
 
 	drop_privs($user, $group);
