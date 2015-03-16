@@ -148,7 +148,7 @@ my $NOW = time;
 			pipe => mock_pipe(join("\n", qw(this is output on multiple lines))),
 	});
 	is(NLMA::reap_check($check, 0x0000), 0, "reap_check returns 0 on success");
-	is($check->{output}, "this / is / output / on / multiple / lines");
+	is($check->{output}, "this\nis\noutput\non\nmultiple\nlines");
 }
 
 done_testing;

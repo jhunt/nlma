@@ -14,72 +14,9 @@ use NLMA;
 use Getopt::Long;
 use Cwd qw(abs_path);
 use Log::Log4perl qw(:easy);
+use Pod::Usage;
 
 my $DEFAULT_CONFIG_FILE_PATH = "/etc/nlma.yml";
-
-sub usage
-{
-	print "USAGE: $0 [-hF] [-vvv] [-c /path/to/config.yml]\n";
-	print "\n";
-	print "OPTIONS\n";
-	print "\n";
-	print "  --config, -c /path/to/config.yml\n";
-	print "      Specify a different configuration.\n";
-	print "      Default is $DEFAULT_CONFIG_FILE_PATH\n";
-	print "\n";
-	print "  --help, -h, -?\n";
-	print "      Show this help message.\n";
-	print "\n";
-	print "  --foreground, -F\n";
-	print "      Don't detach to run in the background.\n";
-	print "      By default, nlma tries to daemonize.\n";
-	print "\n";
-	print " --runall, --test, -t\n";
-	print "      Ignore scheduling and execute all configured\n";
-	print "      checks serially; useful for testing.\n";
-	print "\n";
-	print " --only, -o list,of,groups\n";
-	print "      Restricts --runall to specific groups defined in\n";
-	print "      the config file. Only checks matching the comma\n";
-	print "      separated list of groups will be run.\n";
-	print "\n";
-	print "      This is only applicable with --runall.\n";
-	print "\n";
-	print " --match, -m match|regex\n";
-	print "      Filter the list of checks to run (under --test) to\n";
-	print "      checks with names matching the given regular expression.\n";
-	print "      Don't forget to quote as needed to avoid bash parsing semantics!\n";
-	print "      This is only effective when paired with --test.  If used\n";
-	print "      in conjunction with --only, this will only filter the checks\n";
-	print "      in the desired groups.\n";
-	print "\n";
-	print " --all\n";
-	print "      By default only the checks with group 'default' (or\n";
-	print "      those without a group defined) will be run. This forces\n";
-	print "      all checks to be run.\n";
-	print "\n";
-	print "      This is only applicable with --runall.\n";
-	print "\n";
-	print " --noop, -n\n";
-	print "      When combined with --runall (-t), don't actually\n";
-	print "      submit check results up to NSCA listeners.\n";
-	print "      Local check plugins will still be executed!\n";
-	print "\n";
-	print " --verbose, -v\n";
-	print "      Increase verbosity.  Can be used multiple\n";
-	print "      times for increase verbosity.\n";
-	print "\n";
-	print " --debug, -D\n";
-	print "      Run checks in debug mode.  This mode automatically\n";
-	print "      turns on noop mode, also debug mode can only be\n";
-	print "      run with one check at a time, use match get only one\n";
-	print "      check.\n";
-	print "\n";
-	print " --trace, -DDD\n";
-	print "      Similar to debug mode, but check trace level debugging\n";
-	print "      is turned on\n";
-	print "\n";
-}
 
 my %opt = (
 	config => $DEFAULT_CONFIG_FILE_PATH,
@@ -102,11 +39,10 @@ GetOptions(\%opt,
 	"match|m=s",
 	"env=s",
 	"all",
-);
+) or pod2usage(1);
 
 if ($opt{help}) {
-	usage;
-	exit(0);
+	pod2usage(0);
 }
 
 if ($opt{runall}) {
@@ -190,9 +126,9 @@ B<nlma> - The NLMA Local Monitoring Agent
 
 =head1 SYNOPSIS
 
-nlma [-hFvtn] [-c /path/to/config.yml]
+nlma [-hDFvtn] [-m regex] [-c /path/to/config.yml] [--noop] [--trace]
 
-nlma -t [--all] [--only group1,group2,etc.] [--noop]
+nlma -t [--all] [--only group1,group2,etc.] [-m regex] [--noop]
 
 =head1 DESCRIPTION
 
@@ -211,36 +147,20 @@ active checks.
 
 =item B<--config>, B<-c> I</path/to/config.yml>
 
-By default, nlma uses /etc/nlma.yml for configuration of both behavior
-and check definitions; this option lets you specify a different path.
+Specifies the config file for nlma. Defaults to B</etc/nlma.yml>.
 
 =item B<--foreground>, B<-F>
 
-Force nlma to remain in the foreground, instead of forking off as a daemon
-process.  In foreground mode, nlma will automatically redirect all logging
-to standard error, and honor the B<-v> flags.
+Forces nlma to run in the foreground (still looping and scheduling checks),
+output is redirected to standard error.
 
 =item B<--runall>, B<--test>, B<-t>
 
-Perform a single pass through all configured checks, ignoring the schedule.
-Details of each check being run, including name, command and its output,
-will be printed to standard output.
-
-This flag is useful for immediately running all configured checks and
-submitting the results up to the appropriate NSCA servers.  If you
-just want to exercise the checks and not do the NSCA submission, use the
-B<--noop> flag in conjunction.
-
-In runall mode, B<nlma> will attempt to drop privileges so that it runs
-as the user and group in the configuration.  As such, you must either
-run the command as that user initially, or as root.
-
-B<nlma> will not fork off into the background when run with this argument.
+Ignores scheduling, and runs all matched checks once in the foreground.
 
 =item B<--only>, B<-o> list,of,groups
 
-A comma-separated list of check groups to run.  If you don't know why you
-would need this, you don't need this.  This is only effective when paired
+Restricts the checks run to only specific groups of checks. Only effective
 with B<--test>.
 
 =item B<--all>
@@ -250,40 +170,28 @@ This is only effective when paired with B<--test>.
 
 =item B<--match>, B<-m> I<match|regex>
 
-Filter the list of checks to run (under B<--test>) to checks with names
-matching the given regular expression.  Don't forget to quote as needed
-to avoid bash parsing semantics!
+Filters checks run under B<--test> mode to those matching the provided
+regex. Only effective when paired with B<--test>.
 
-This is only effective when paired with B<--test>.  If used in conjunction
-with B<--only>, this will only filter the checks in the desired groups.
+If used in conjunction with B<--only>, this will only filter the checks in
+the desired groups.
 
 =item B<--noop>, B<-n>
 
-When combined with B<--runall> (B<-t>), skip the submission of check results
-to NSCA servers.  Note that all checks will actually be run, and incur any
-side effects.
+Skips submission of check results to upstream monitoring servers. Only effective
+when paired with B<--test>.
 
-=item B<--env> I<PATTERN>
-
-By default, B<nlma> will clean up its environment.  This option instructs it
-to preserve all environment variables that match the Perl-compatible regular
-expression I<PATTERN>.  This pattern will be implicitly anchored at both
-beginning and end, so to match partial variable names you will need to use
-globs (like --env 'TEST_.*').
+Note that all checks will actually be run, and incur any side effects.
 
 =item B<--verbose>, B<-v>
 
-Increase output in foreground mode (see B<--foreground>).  Can be specified
-multiple times, for a cumulative effect.  nlma only honors up to three B<-v>
-flags; B<-vvv> is equivalent to full debug mode.
+Increase output in B<--foreground> mode. Can be specified up to B<-vvv> for
+a cumulative effect on verbosity.
 
 =item B<--debug>, B<-D>
 
-Run checks in debug mode, implying B<--noop>.  In debug mode, a single
-check (matched with B<-m>) will be run with the --debug flag, to print out
-helpful plugin debugging messages.
-
-This is only applicable with B<--test>.
+Run checks in debug mode (Appends -D to check invocation). Implies B<--noop>.
+Only effective with B<--test>.
 
 =item B<--trace>, B<-DDD>
 
