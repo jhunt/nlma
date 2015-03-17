@@ -278,7 +278,6 @@ sub reap_check
 		$check->{state} = 3; # UNKNOWN
 	}
 
-	$check->{current}++;
 	# OK != soft; propagation of previous state != soft
 	if ($check->{state} == 0 || $check->{state} == $check->{last_state}) {
 		$check->{is_soft_state} = 0;
@@ -290,6 +289,7 @@ sub reap_check
 
 	} else {
 		$check->{is_soft_state} = 1;
+		$check->{current}++;
 	}
 
 	DEBUG("check $check->{name} :: last_state:$check->{last_state}, state:$check->{state}, attempts:$check->{current}/$check->{attempts}, soft:$check->{is_soft_state}");
@@ -515,7 +515,6 @@ sub parse_config
 			return undef;
 		}
 		$check->{env} = merge($check->{env} || {}, $config->{env}); # environment variables
-		$check->{current} = 1; # current attempt
 
 		# Use config key as name if not overridden
 		$check->{name} = $check->{name} || $cname;
@@ -556,12 +555,13 @@ sub parse_config
 		DEBUG("$cname retry interval is $check->{retry} seconds");
 		DEBUG("$cname env $_='$check->{env}{$_}'") for sort keys %{$check->{env}};
 
-		$check->{started_at} = $check->{duration} = $check->{ended_at} = 0;
-		$check->{next_run} = 0;
-		$check->{current} = $check->{is_soft_state} = 0;
-		$check->{last_state} = $check->{state} = 0;
-		$check->{pid} = $check->{exit_status} = -1;
-		$check->{output} = "";
+		$check->{current}       = 1; # current attempt
+		$check->{is_soft_state} = 0;
+		$check->{last_state}    = $check->{state} = 0;
+		$check->{started_at}    = $check->{duration} = $check->{ended_at} = 0;
+		$check->{next_run}      = 0;
+		$check->{pid}           = $check->{exit_status} = -1;
+		$check->{output}        = "";
 
 		$min_interval = MIN($min_interval, $check->{interval});
 

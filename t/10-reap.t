@@ -151,4 +151,63 @@ my $NOW = time;
 	is($check->{output}, "this\nis\noutput\non\nmultiple\nlines");
 }
 
+{ # ITM-  - limits should be hit, and then reset
+	my $check = mock_check({
+		name          => "check_attempts",
+		state         => 0,
+		is_soft_state => 0,
+		current       => 1,
+		attempts      => 3,
+		pipe          => mock_pipe("still critical"),
+	});
+	# First attempt
+	is(NLMA::reap_check($check, mock_exit(2)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 1, "Check transitions to soft state");
+	is($check->{current},       2, "Check is ready for its second attempt");
+	is($check->{state},         2, "Check is now critical");
+	is($check->{last_state},    0, "Check last hard state is OK");
+
+	# Second attempt
+	is(NLMA::reap_check($check, mock_exit(2)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 1, "Check is still in soft state");
+	is($check->{current},       3, "Check is ready for its third attempt");
+	is($check->{state},         2, "Check is now critical");
+	is($check->{last_state},    0, "Check last hard state is OK");
+
+	# Third and final attempt
+	is(NLMA::reap_check($check, mock_exit(2)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 0, "Check transitions to hard state");
+	is($check->{current},       1, "Check is reset after exceeding its retries");
+	is($check->{state},         2, "Check is now critical");
+	is($check->{last_state},    0, "Check last hard state is still OK");
+
+	# Repeat hard state does not increment current
+	is(NLMA::reap_check($check, mock_exit(2)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 0, "Check remains in a hard state");
+	is($check->{current},       1, "Check 'current' remains the same after keeping same state");
+	is($check->{state},         2, "Check is still critical");
+	is($check->{last_state},    2, "Check last hard state is still critical");
+
+	# Return to OK state
+	is(NLMA::reap_check($check, mock_exit(0)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 0, "Check is immediately hard state on OK, no retries necessary");
+	is($check->{current},       1, "Check is still 1 attempt on transition to OK");
+	is($check->{state},         0, "Check is now OK");
+	is($check->{last_state},    2, "Check last hard state is still crit");
+
+	# First attempt
+	is(NLMA::reap_check($check, mock_exit(2)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 1, "Check transitions to soft state");
+	is($check->{current},       2, "Check is ready for its second attempt");
+	is($check->{state},         2, "Check is now critical");
+	is($check->{last_state},    0, "Check last hard state is OK");
+
+	# Return to OK state
+	is(NLMA::reap_check($check, mock_exit(0)), 0, "reap check returns 0 on success");
+	is($check->{is_soft_state}, 0, "Check is immediately hard state on OK, canceling existing soft state");
+	is($check->{current},       1, "Check is returns to 1 attempt on transition to OK");
+	is($check->{state},         0, "Check is now OK");
+	is($check->{last_state},    0, "Check last hard state is OK still");
+}
+
 done_testing;

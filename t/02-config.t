@@ -128,7 +128,7 @@ use Sys::Hostname qw(hostname);
 	is($check->{started_at}, 0, "<started_at> is initially 0");
 	is($check->{duration},   0, "<duration> is initially 0");
 	is($check->{ended_at},   0, "<ended_at> is initially 0");
-	is($check->{current},    0, "<current> attempt is initially 0");
+	is($check->{current},    1, "<current> attempt is initially 1");
 
 	is($check->{is_soft_state}, 0, "<is_soft_state> is initially 0");
 	is($check->{last_state},    0, "<last_state> is initially 0");
