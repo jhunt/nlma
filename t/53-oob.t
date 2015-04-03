@@ -19,18 +19,11 @@ use NLMA;
 		output   => "looks good"
 	});
 	cmp_deeply($check, {
-		hostname    => "default-host",     # auto-host
-		name        => "oob_test_service", # auto-prefix
+		hostname    => "default-host", # auto-host
+		name        => "test_service",
 		exit_status => 0,
 		output      => "looks good (submitted via default-host)"
 	}, "Check attributes for localhost");
-
-	NLMA->submit_oob($CONFIG, {
-		service  => "oob_thing",
-		code     => 0,
-		output   => "fine fine fine",
-	});
-	is($check->{name}, "oob_thing", "Prefixing de-duplication");
 
 	NLMA->submit_oob($CONFIG, {
 		service  => "other-guy",
@@ -40,7 +33,7 @@ use NLMA;
 	});
 	cmp_deeply($check, {
 		hostname    => "some.other.host",
-		name        => "oob_other-guy",
+		name        => "other-guy",
 		exit_status => 1,
 		output      => "WARNING (submitted via default-host)",
 	}, "On-behalf-of OOB submission");
