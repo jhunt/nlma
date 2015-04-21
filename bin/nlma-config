@@ -17,7 +17,7 @@ GetOptions(\%OPTIONS, qw/
 
 	config|c=s
 /) or pod2usage(2);
-pod2uage(1) if $OPTIONS{help};
+pod2usage(1) if $OPTIONS{help};
 
 sub format_time
 {
